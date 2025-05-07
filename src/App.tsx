@@ -4,20 +4,36 @@ import Home from './pages/Home';
 import Rooms from './pages/Rooms';
 import AdminDashboard from './pages/AdminDashboard';
 import Amenities from './components/Amenities';
+import About from './pages/About';
+import Layout from './components/Layout';
 
 function App() {
-  // Simple routing based on URL path
   const path = window.location.pathname;
+
+  const getPage = () => {
+    switch (path) {
+      case '/':
+        return <Home />;
+      case '/rooms':
+        return <Rooms />;
+      case '/admin':
+        return <AdminDashboard />;
+      case '/amenities':
+        return <Amenities />;
+      case '/about':
+        return <About />;
+      default:
+        return <Home />;
+    }
+  };
 
   return (
     <AppProvider>
-      {path === '/' && <Home />}
-      {path === '/rooms' && <Rooms />}
-      {path === '/admin' && <AdminDashboard />}
-      {!['/rooms', '/admin', '/'].includes(path) && <Home />}
-       {/* Default to home for unknown routes */}
+      <Layout>
+        {getPage()}
+      </Layout>
     </AppProvider>
-   );
+  );
 }
 
 export default App;
