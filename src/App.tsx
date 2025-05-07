@@ -6,6 +6,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import Amenities from './components/Amenities';
 import About from './pages/About';
 import Layout from './components/Layout';
+import ContactPage from './pages/contactus';
 
 function App() {
   const path = window.location.pathname;
@@ -22,6 +23,8 @@ function App() {
         return <Amenities />;
       case '/about':
         return <About />;
+        case '/contact':
+        return <ContactPage/>; // Assuming you have a Contact component
       default:
         return <Home />;
     }
