@@ -52,7 +52,7 @@ const Navbar: React.FC = () => {
             }`}
           >
             {/* <BookOpen className="mr-2" size={28} /> */}
-            Lerelax Hotel
+            Lerelaxs Hotel
           </a>
 
           {/* Desktop Navigation */}
