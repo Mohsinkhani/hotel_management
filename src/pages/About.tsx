@@ -16,7 +16,7 @@ const About: React.FC = () => {
       <div className="relative max-w-7xl mx-auto z-10">
         {/* Header */}
         <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold text-blue-700 mb-4">About Luxe Hotel</h2>
+          <h2 className="text-4xl font-bold text-blue-700 mb-4">About Lerelax Hotel</h2>
           <p className="text-white text-lg">
             Discover elegance, comfort, and world-class hospitality in the heart of the city.
           </p>
@@ -28,7 +28,7 @@ const About: React.FC = () => {
           <div>
             <h3 className="text-2xl font-semibold text-white mb-4">Our Story</h3>
             <p className="text-white mb-4">
-              Luxe Hotel was established in 2005 with the mission to redefine luxury and comfort. Nestled in a prime location,
+              Lerelax Hotel was established in 2005 with the mission to redefine luxury and comfort. Nestled in a prime location,
               our hotel blends modern amenities with timeless elegance to offer an unforgettable experience.
             </p>
             <p className="text-white mb-4">

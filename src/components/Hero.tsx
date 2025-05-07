@@ -18,7 +18,7 @@ const Hero: React.FC = () => {
       <div className="absolute inset-0 z-0">
         <img 
           src="https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg" 
-          alt="Luxe Hotel" 
+          alt="Lerelax Hotel" 
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-black bg-opacity-40"></div>
@@ -30,7 +30,7 @@ const Hero: React.FC = () => {
           Experience True Luxury
         </h1>
         <p className="text-xl md:text-2xl mb-8 max-w-3xl text-center">
-          Welcome to Luxe Hotel, where elegance meets comfort in the heart of the city.
+          Welcome to Lerelax Hotel, where elegance meets comfort in the heart of the city.
         </p>
         
         {/* Booking Form */}
