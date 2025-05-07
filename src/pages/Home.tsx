@@ -7,14 +7,14 @@ import Testimonials from '../components/Testimonials';
 
 const Home: React.FC = () => {
   return (
-    <Layout>
+    <>
       <Hero />
       <FeaturedRooms />
       <section id="amenities">
         <Amenities />
       </section>
        <Testimonials />
-    </Layout>
+   </>
   );
 };
 
