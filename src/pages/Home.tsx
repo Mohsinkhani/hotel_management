@@ -10,8 +10,10 @@ const Home: React.FC = () => {
     <Layout>
       <Hero />
       <FeaturedRooms />
-      <Amenities />
-      <Testimonials />
+      <section id="amenities">
+        <Amenities />
+      </section>
+       <Testimonials />
     </Layout>
   );
 };
