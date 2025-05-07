@@ -51,8 +51,8 @@ const Navbar: React.FC = () => {
               isScrolled ? 'text-blue-900' : 'text-white'
             }`}
           >
-            <BookOpen className="mr-2" size={28} />
-            Luxe Hotel
+            {/* <BookOpen className="mr-2" size={28} /> */}
+            Lerelax Hotel
           </a>
 
           {/* Desktop Navigation */}
