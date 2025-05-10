@@ -69,84 +69,90 @@ const ContactPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         {/* Page Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-serif font-bold text-gray-900 mb-4">Contact Us</h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <h1 className="text-5xl font-serif font-bold text-indigo-900 mb-4">Get In Touch</h1>
+          <div className="w-24 h-1 bg-indigo-400 mx-auto mb-6"></div>
+          <p className="text-xl text-indigo-700 max-w-2xl mx-auto">
             Have questions or want to book a stay? Reach out to us and we'll be happy to assist you.
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Contact Information */}
-          <div className="bg-white p-8 rounded-xl shadow-lg">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
-              <span className="bg-amber-100 p-2 rounded-full mr-3">
-                <Home className="text-amber-600" size={20} />
+          <div className="bg-white p-8 rounded-2xl shadow-xl border border-indigo-50">
+            <h2 className="text-2xl font-semibold text-indigo-900 mb-6 flex items-center">
+              <span className="bg-indigo-100 p-3 rounded-full mr-3 shadow-inner">
+                <Home className="text-indigo-600" size={20} />
               </span>
               Our Information
             </h2>
             
             <div className="space-y-6">
               <div className="flex items-start">
-                <div className="bg-amber-100 p-2 rounded-full mr-4 flex-shrink-0">
-                  <MapPin className="text-amber-600" size={18} />
+                <div className="bg-indigo-100 p-3 rounded-full mr-4 flex-shrink-0 shadow-inner">
+                  <MapPin className="text-indigo-600" size={18} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium text-gray-800">Address</h3>
-                  <p className="text-gray-600">7328 King Abdulaziz Rd, 4656, Almatar, Buqayq 33261</p>
+                  <h3 className="text-lg font-medium text-indigo-800">Address</h3>
+                  <p className="text-indigo-600">7328 King Abdulaziz Rd, 4656, Almatar, Buqayq 33261</p>
                 </div>
               </div>
 
               <div className="flex items-center">
-                <div className="bg-amber-100 p-2 rounded-full mr-4 flex-shrink-0">
-                  <Phone className="text-amber-600" size={18} />
+                <div className="bg-indigo-100 p-3 rounded-full mr-4 flex-shrink-0 shadow-inner">
+                  <Phone className="text-indigo-600" size={18} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium text-gray-800">Phone</h3>
-                  <p className="text-gray-600">+966 560000517</p>
+                  <h3 className="text-lg font-medium text-indigo-800">Phone</h3>
+                  <p className="text-indigo-600">+966 560000517</p>
                 </div>
               </div>
 
               <div className="flex items-center">
-                <div className="bg-amber-100 p-2 rounded-full mr-4 flex-shrink-0">
-                  <Mail className="text-amber-600" size={18} />
+                <div className="bg-indigo-100 p-3 rounded-full mr-4 flex-shrink-0 shadow-inner">
+                  <Mail className="text-indigo-600" size={18} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium text-gray-800">Email</h3>
-                  <p className="text-gray-600">info@lerelax.online</p>
+                  <h3 className="text-lg font-medium text-indigo-800">Email</h3>
+                  <p className="text-indigo-600">info@lerelax.online</p>
                 </div>
               </div>
             </div>
 
             <div className="mt-8">
-              <h3 className="text-lg font-medium text-gray-800 mb-4">Business Hours</h3>
-              <ul className="space-y-2 text-gray-600">
-                <li className="flex justify-between">
+              <h3 className="text-lg font-medium text-indigo-800 mb-4 flex items-center">
+                <span className="bg-indigo-100 p-2 rounded-full mr-2 shadow-inner">
+                  <Calendar className="text-indigo-600" size={16} />
+                </span>
+                Business Hours
+              </h3>
+              <ul className="space-y-2 text-indigo-600">
+                <li className="flex justify-between bg-indigo-50 p-3 rounded-lg">
                   <span>Monday - Friday</span>
-                  <span>8:00 AM - 10:00 PM</span>
+                  <span className="font-medium">8:00 AM - 10:00 PM</span>
                 </li>
-                <li className="flex justify-between">
+                <li className="flex justify-between bg-indigo-50 p-3 rounded-lg">
                   <span>Saturday - Sunday</span>
-                  <span>9:00 AM - 11:00 PM</span>
+                  <span className="font-medium">9:00 AM - 11:00 PM</span>
                 </li>
               </ul>
             </div>
           </div>
 
           {/* Contact Form */}
-          <div className="bg-white p-8 rounded-xl shadow-lg">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
-              <span className="bg-amber-100 p-2 rounded-full mr-3">
-                <Mail className="text-amber-600" size={20} />
+          <div className="bg-white p-8 rounded-2xl shadow-xl border border-indigo-50">
+            <h2 className="text-2xl font-semibold text-indigo-900 mb-6 flex items-center">
+              <span className="bg-indigo-100 p-3 rounded-full mr-3 shadow-inner">
+                <Mail className="text-indigo-600" size={20} />
               </span>
               Send Us a Message
             </h2>
 
             {submitMessage.text && (
-              <div className={`mb-6 p-4 rounded-md ${submitMessage.isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+              <div className={`mb-6 p-4 rounded-lg ${submitMessage.isError ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-green-100 text-green-800 border border-green-200'}`}>
                 {submitMessage.text}
               </div>
             )}
@@ -154,12 +160,12 @@ const ContactPage: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="name" className="block text-sm font-medium text-indigo-700 mb-2">
                     Full Name *
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="text-gray-400" size={18} />
+                      <User className="text-indigo-400" size={18} />
                     </div>
                     <input
                       type="text"
@@ -168,18 +174,19 @@ const ContactPage: React.FC = () => {
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="pl-10 w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 py-2 border"
+                      className="pl-10 w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 border text-indigo-700 placeholder-indigo-300"
+                      placeholder="John Doe"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="email" className="block text-sm font-medium text-indigo-700 mb-2">
                     Email Address *
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="text-gray-400" size={18} />
+                      <Mail className="text-indigo-400" size={18} />
                     </div>
                     <input
                       type="email"
@@ -188,19 +195,20 @@ const ContactPage: React.FC = () => {
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="pl-10 w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 py-2 border"
+                      className="pl-10 w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 border text-indigo-700 placeholder-indigo-300"
+                      placeholder="your@email.com"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="phone" className="block text-sm font-medium text-indigo-700 mb-2">
                   Phone Number
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Phone className="text-gray-400" size={18} />
+                    <Phone className="text-indigo-400" size={18} />
                   </div>
                   <input
                     type="tel"
@@ -208,13 +216,14 @@ const ContactPage: React.FC = () => {
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    className="pl-10 w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 py-2 border"
+                    className="pl-10 w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 border text-indigo-700 placeholder-indigo-300"
+                    placeholder="+966 560000517"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="subject" className="block text-sm font-medium text-indigo-700 mb-2">
                   Subject *
                 </label>
                 <select
@@ -222,7 +231,7 @@ const ContactPage: React.FC = () => {
                   name="subject"
                   value={formData.subject}
                   onChange={handleChange}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 py-2 border"
+                  className="w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 border text-indigo-700"
                 >
                   <option value="general">General Inquiry</option>
                   <option value="booking">Room Booking</option>
@@ -233,22 +242,22 @@ const ContactPage: React.FC = () => {
 
               {/* Booking Fields (shown only when subject is booking) */}
               {formData.subject === 'booking' && (
-                <div className="space-y-6 bg-amber-50 p-4 rounded-md border border-amber-100">
-                  <h3 className="text-lg font-medium text-gray-800 flex items-center">
-                    <span className="bg-amber-100 p-1.5 rounded-full mr-2">
-                      <Moon className="text-amber-600" size={16} />
+                <div className="space-y-6 bg-indigo-50 p-6 rounded-lg border border-indigo-100">
+                  <h3 className="text-lg font-medium text-indigo-800 flex items-center">
+                    <span className="bg-indigo-100 p-2 rounded-full mr-2 shadow-inner">
+                      <Moon className="text-indigo-600" size={16} />
                     </span>
                     Booking Details
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label htmlFor="checkIn" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="checkIn" className="block text-sm font-medium text-indigo-700 mb-2">
                         Check-In Date *
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Calendar className="text-gray-400" size={18} />
+                          <Calendar className="text-indigo-400" size={18} />
                         </div>
                         <input
                           type="date"
@@ -258,18 +267,18 @@ const ContactPage: React.FC = () => {
                           onChange={handleChange}
                           required={formData.subject === 'booking'}
                           min={new Date().toISOString().split('T')[0]}
-                          className="pl-10 w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 py-2 border"
+                          className="pl-10 w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 border text-indigo-700"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label htmlFor="checkOut" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="checkOut" className="block text-sm font-medium text-indigo-700 mb-2">
                         Check-Out Date *
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Calendar className="text-gray-400" size={18} />
+                          <Calendar className="text-indigo-400" size={18} />
                         </div>
                         <input
                           type="date"
@@ -279,7 +288,7 @@ const ContactPage: React.FC = () => {
                           onChange={handleChange}
                           required={formData.subject === 'booking'}
                           min={formData.checkIn || new Date().toISOString().split('T')[0]}
-                          className="pl-10 w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 py-2 border"
+                          className="pl-10 w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 border text-indigo-700"
                         />
                       </div>
                     </div>
@@ -287,7 +296,7 @@ const ContactPage: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label htmlFor="roomType" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="roomType" className="block text-sm font-medium text-indigo-700 mb-2">
                         Room Type *
                       </label>
                       <select
@@ -296,7 +305,7 @@ const ContactPage: React.FC = () => {
                         value={formData.roomType}
                         onChange={handleChange}
                         required={formData.subject === 'booking'}
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 py-2 border"
+                        className="w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 border text-indigo-700"
                       >
                         <option value="standard">Standard Room</option>
                         <option value="deluxe">Deluxe Room</option>
@@ -307,7 +316,7 @@ const ContactPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label htmlFor="guests" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="guests" className="block text-sm font-medium text-indigo-700 mb-2">
                         Number of Guests *
                       </label>
                       <input
@@ -319,7 +328,7 @@ const ContactPage: React.FC = () => {
                         min="1"
                         max="10"
                         required={formData.subject === 'booking'}
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 py-2 border"
+                        className="w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 border text-indigo-700"
                       />
                     </div>
                   </div>
@@ -327,17 +336,18 @@ const ContactPage: React.FC = () => {
               )}
 
               <div>
-                <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="message" className="block text-sm font-medium text-indigo-700 mb-2">
                   Message *
                 </label>
                 <textarea
                   id="message"
                   name="message"
-                  rows={4}
+                  rows={5}
                   value={formData.message}
                   onChange={handleChange}
                   required
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 py-2 border"
+                  className="w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 border text-indigo-700 placeholder-indigo-300"
+                  placeholder="Your message here..."
                 ></textarea>
               </div>
 
@@ -345,7 +355,7 @@ const ContactPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white py-3 px-4 rounded-md shadow-md transition-all duration-300 flex justify-center items-center"
+                  className="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white py-4 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex justify-center items-center font-medium text-lg"
                 >
                   {isSubmitting ? (
                     <>
