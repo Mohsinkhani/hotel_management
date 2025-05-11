@@ -69,7 +69,18 @@ const AdminDashboard: React.FC = () => {
 
     getReservations();
   }, []);
-
+  const deleteReservation = async (id: string) => {
+    const { error } = await supabase
+      .from('reservations')
+      .delete()
+      .eq('id', id);
+  
+    if (error) return console.error(error.message);
+  
+    // Remove from local state
+    setReservations((prev) => prev.filter((r) => r.id !== id));
+  };
+  
   /* ── Derive guests array from reservations ──────────── */
   const guests: Guest[] = useMemo(() => {
     const map = new Map<string, Guest>();
@@ -220,7 +231,18 @@ const AdminDashboard: React.FC = () => {
                                   </button>
                                   <button title="Edit">
                                     <Pencil size={18} className="text-gray-600" />
-                                  </button>
+                            </button>
+                                   <button
+                                     title="Delete"
+                                     onClick={() => {
+                                     if (confirm('Are you sure you want to delete this reservation?')) {
+                                         deleteReservation(r.id);
+                                                        }
+                                                         }}
+                                          >
+                                 <X size={18} className="text-red-400 hover:text-red-600" />
+                            </button>
+
                                 </div>
                               </td>
                             </tr>
