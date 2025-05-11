@@ -2,7 +2,7 @@ import { Room } from '../types';
 
 export const rooms: Room[] = [
   {
-    id: '1',
+    id: 1,
     name: 'Deluxe King Room',
     type: 'deluxe',
     price: 250,
@@ -27,7 +27,7 @@ export const rooms: Room[] = [
     available: true
   },
   {
-    id: '2',
+    id: 2,
     name: 'Standard Twin Room',
     type: 'standard',
     price: 180,
@@ -50,7 +50,7 @@ export const rooms: Room[] = [
     available: true
   },
   {
-    id: '3',
+    id: 3,
     name: 'Luxury Suite',
     type: 'suite',
     price: 450,
@@ -78,7 +78,7 @@ export const rooms: Room[] = [
     available: true
   },
   {
-    id: '4',
+    id: 4,
     name: 'Presidential Suite',
     type: 'presidential',
     price: 850,

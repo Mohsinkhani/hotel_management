@@ -76,7 +76,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Check if there are any overlapping reservations
       const overlappingReservations = reservations.filter(
         (reservation) =>
-          reservation.roomId === room.id &&
+          reservation.roomId === room.id.toString() &&
           reservation.status !== 'cancelled' &&
           !(
             new Date(reservation.checkOutDate) <= checkInDate ||
@@ -89,7 +89,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getRoomById = (id: string) => {
-    return rooms.find((room) => room.id === id);
+    return rooms.find((room) => room.id.toString() === id);
   };
 
   const getReservationById = (id: string) => {

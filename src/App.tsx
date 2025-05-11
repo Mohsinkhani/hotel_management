@@ -1,4 +1,6 @@
+// App.tsx
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import Home from './pages/Home';
 import Rooms from './pages/Rooms';
@@ -7,34 +9,41 @@ import Amenities from './components/Amenities';
 import About from './pages/About';
 import Layout from './components/Layout';
 import ContactPage from './pages/contactus';
+import BookingForm from './components/BookingForm';
+import { Room } from './types';
+
+const dummyRoom: Room = {
+  id: 1,
+  name: 'Deluxe Suite',
+  price: 150,
+  description: 'Spacious room with a sea view and a king-size bed.',
+  images: ["image1.jpg", "image2.jpg"],
+  type: 'standard',
+  capacity: 0,
+  amenities: [],
+  available: false
+};
+
+const handleCancelBooking = () => {
+  window.location.href = '/rooms'; // You can also use navigate here if needed
+};
 
 function App() {
-  const path = window.location.pathname;
-
-  const getPage = () => {
-    switch (path) {
-      case '/':
-        return <Home />;
-      case '/rooms':
-        return <Rooms />;
-      case '/admin':
-        return <AdminDashboard />;
-      case '/amenities':
-        return <Amenities />;
-      case '/about':
-        return <About />;
-        case '/contact':
-        return <ContactPage/>; // Assuming you have a Contact component
-      default:
-        return <Home />;
-    }
-  };
-
   return (
     <AppProvider>
-      <Layout>
-        {getPage()}
-      </Layout>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/rooms" element={<Rooms />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/amenities" element={<Amenities />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/booking" element={<BookingForm room={dummyRoom} onCancel={handleCancelBooking} />} />
+            {/* Optional: add a catch-all route for 404 */}
+            <Route path="*" element={<Home />} />
+          </Routes>
+        </Layout>
     </AppProvider>
   );
 }
