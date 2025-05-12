@@ -1,5 +1,3 @@
-// src/pages/AdminDashboard.tsx   (or wherever the component lives)
-
 import React, { useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout';
 import { supabase } from '../supabaseClient';
@@ -12,13 +10,12 @@ import {
   Pencil,
 } from 'lucide-react';
 import { rooms } from '../data/rooms';
+import emailjs from 'emailjs-com';
 
-/* ────────────────────
-   DB row → TypeScript
-   ──────────────────── */
+emailjs.init('pyYLR26bzKqt-HopY'); // Replace with your actual PUBLIC KEY
 
 type Reservation = {
-  id: string;           // uuid
+  id: string;
   room_id: string | null;
   guest_id: string | null;
   check_in_date: string | null;
@@ -34,7 +31,7 @@ type Reservation = {
 };
 
 type Guest = {
-  guestKey: string;               // guest_id if present, else email, else uuid
+  guestKey: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -42,18 +39,11 @@ type Guest = {
   reservations: Reservation[];
 };
 
-/* ────────────────────
-   Component
-   ──────────────────── */
-
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'reservations' | 'guests' | 'rooms'>(
-    'reservations'
-  );
+  const [activeTab, setActiveTab] = useState<'reservations' | 'guests' | 'rooms'>('reservations');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /* ── Fetch once on mount ────────────────────────────── */
   useEffect(() => {
     const getReservations = async () => {
       setLoading(true);
@@ -69,24 +59,17 @@ const AdminDashboard: React.FC = () => {
 
     getReservations();
   }, []);
+
   const deleteReservation = async (id: string) => {
-    const { error } = await supabase
-      .from('reservations')
-      .delete()
-      .eq('id', id);
-  
+    const { error } = await supabase.from('reservations').delete().eq('id', id);
     if (error) return console.error(error.message);
-  
-    // Remove from local state
     setReservations((prev) => prev.filter((r) => r.id !== id));
   };
-  
-  /* ── Derive guests array from reservations ──────────── */
+
   const guests: Guest[] = useMemo(() => {
     const map = new Map<string, Guest>();
-
     reservations.forEach((r) => {
-      const key = r.guest_id || r.email || r.id; // last fallback = row id
+      const key = r.guest_id || r.email || r.id;
       if (!map.has(key)) {
         map.set(key, {
           guestKey: key,
@@ -99,26 +82,44 @@ const AdminDashboard: React.FC = () => {
       }
       map.get(key)!.reservations.push(r);
     });
-
     return Array.from(map.values());
   }, [reservations]);
 
-  /* ── Update status helper ───────────────────────────── */
-  const updateStatus = async (id: string, status: string) => {
-    const { error } = await supabase
-      .from('reservations')
-      .update({ status })
-      .eq('id', id);
+  const sendEmail = (reservation: Reservation, newStatus: string) => {
+    if (!reservation.email) {
+      console.warn('No email provided for this reservation.');
+      return;
+    }
 
-    if (error) return console.error(error.message);
+    const templateParams = {
+      user_name: `${reservation.first_name} ${reservation.last_name}`,
+      reservation_id: reservation.id,
+      status: newStatus,
+      check_in: reservation.check_in_date,
+      check_out: reservation.check_out_date,
+      email: reservation.email,
+    };
 
-    // Fast local optimistic update
-    setReservations((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status } : r))
-    );
+    emailjs
+      .send('service_kh7wuol', 'template_6s8eg1n', templateParams) // Replace template ID
+      .then((response) => {
+        console.log('Email sent successfully:', response.status, response.text);
+      })
+      .catch((error) => {
+        console.error('Failed to send email:', error);
+      });
   };
 
-  /* ── Badge renderer ─────────────────────────────────── */
+  const updateStatus = async (id: string, status: string) => {
+    const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
+    if (error) return console.error(error.message);
+
+    const updatedReservation = reservations.find((r) => r.id === id);
+    if (updatedReservation) sendEmail(updatedReservation, status);
+
+    setReservations((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+  };
+
   const badge = (status: string | null) => {
     switch (status) {
       case 'confirmed':
@@ -136,13 +137,13 @@ const AdminDashboard: React.FC = () => {
       case 'checked-in':
         return (
           <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 flex items-center">
-            <User size={12} className="mr-1" /> Checked&nbsp;In
+            <User size={12} className="mr-1" /> Checked In
           </span>
         );
       case 'checked-out':
         return (
           <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 flex items-center">
-            <LogOut size={12} className="mr-1" /> Checked&nbsp;Out
+            <LogOut size={12} className="mr-1" /> Checked Out
           </span>
         );
       case 'cancelled':
@@ -156,13 +157,11 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  /* ── UI ─────────────────────────────────────────────── */
   return (
     <Layout>
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="container mx-auto px-4 md:px-6">
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            {/* Tabs */}
             <div className="border-b flex">
               {(['reservations', 'guests', 'rooms'] as const).map((t) => (
                 <button
@@ -180,7 +179,6 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="p-6">
-              {/* ───────── Reservations TAB ───────── */}
               {activeTab === 'reservations' && (
                 <>
                   <h2 className="text-2xl font-bold mb-6">Reservations</h2>
@@ -193,7 +191,7 @@ const AdminDashboard: React.FC = () => {
                           <tr className="bg-gray-50">
                             <th className="px-4 py-3">ID</th>
                             <th className="px-4 py-3">Guest</th>
-                            <th className="px-4 py-3">Room&nbsp;ID</th>
+                            <th className="px-4 py-3">Room ID</th>
                             <th className="px-4 py-3">Check-in</th>
                             <th className="px-4 py-3">Check-out</th>
                             <th className="px-4 py-3">Status</th>
@@ -202,19 +200,13 @@ const AdminDashboard: React.FC = () => {
                         </thead>
                         <tbody>
                           {reservations.map((r) => (
-                            <tr
-                              key={r.id}
-                              className="border-b hover:bg-gray-50 text-sm"
-                            >
+                            <tr key={r.id} className="border-b hover:bg-gray-50 text-sm">
                               <td className="px-4 py-3 font-mono">{r.id.slice(0, 8)}</td>
-                              <td className="px-4 py-3">
-                                {r.first_name} {r.last_name}
-                              </td>
+                              <td className="px-4 py-3">{r.first_name} {r.last_name}</td>
                               <td className="px-4 py-3">{r.room_id || '—'}</td>
                               <td className="px-4 py-3">{r.check_in_date}</td>
                               <td className="px-4 py-3">{r.check_out_date}</td>
                               <td className="px-4 py-3">{badge(r.status)}</td>
-
                               <td className="px-4 py-3">
                                 <div className="flex space-x-2">
                                   <button title="Confirm" onClick={() => updateStatus(r.id, 'confirmed')}>
@@ -231,18 +223,17 @@ const AdminDashboard: React.FC = () => {
                                   </button>
                                   <button title="Edit">
                                     <Pencil size={18} className="text-gray-600" />
-                            </button>
-                                   <button
-                                     title="Delete"
-                                     onClick={() => {
-                                     if (confirm('Are you sure you want to delete this reservation?')) {
-                                         deleteReservation(r.id);
-                                                        }
-                                                         }}
-                                          >
-                                 <X size={18} className="text-red-400 hover:text-red-600" />
-                            </button>
-
+                                  </button>
+                                  <button
+                                    title="Delete"
+                                    onClick={() => {
+                                      if (confirm('Are you sure you want to delete this reservation?')) {
+                                        deleteReservation(r.id);
+                                      }
+                                    }}
+                                  >
+                                    <X size={18} className="text-red-400 hover:text-red-600" />
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -254,7 +245,6 @@ const AdminDashboard: React.FC = () => {
                 </>
               )}
 
-              {/* ───────── Guests TAB ───────── */}
               {activeTab === 'guests' && (
                 <>
                   <h2 className="text-2xl font-bold mb-6">Guests</h2>
@@ -274,21 +264,12 @@ const AdminDashboard: React.FC = () => {
                         </thead>
                         <tbody>
                           {guests.map((g) => (
-                            <tr
-                              key={g.guestKey}
-                              className="border-b hover:bg-gray-50 text-sm"
-                            >
-                              <td className="px-4 py-3 font-mono">
-                                {g.guestKey.slice(0, 8)}
-                              </td>
-                              <td className="px-4 py-3">
-                                {g.first_name} {g.last_name}
-                              </td>
+                            <tr key={g.guestKey} className="border-b hover:bg-gray-50 text-sm">
+                              <td className="px-4 py-3 font-mono">{g.guestKey.slice(0, 8)}</td>
+                              <td className="px-4 py-3">{g.first_name} {g.last_name}</td>
                               <td className="px-4 py-3">{g.email}</td>
                               <td className="px-4 py-3">{g.phone}</td>
-                              <td className="px-4 py-3">
-                                {g.reservations.length}
-                              </td>
+                              <td className="px-4 py-3">{g.reservations.length}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -298,49 +279,39 @@ const AdminDashboard: React.FC = () => {
                 </>
               )}
 
-              {/* ───────── Rooms TAB (placeholder) ───────── */}
               {activeTab === 'rooms' && (
                 <div>
                   <h2 className="text-2xl font-bold text-gray-800 mb-6">Rooms</h2>
-                  <h3>The below are static data</h3>
-                  
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
                         <tr className="bg-gray-50">
-                          <th className="px-4 py-3 text-gray-600">ID</th>
-                          <th className="px-4 py-3 text-gray-600">Room</th>
-                          <th className="px-4 py-3 text-gray-600">Type</th>
-                          <th className="px-4 py-3 text-gray-600">Price</th>
-                          <th className="px-4 py-3 text-gray-600">Capacity</th>
-                          <th className="px-4 py-3 text-gray-600">Status</th>
-                          <th className="px-4 py-3 text-gray-600">Actions</th>
+                          <th className="px-4 py-3">ID</th>
+                          <th className="px-4 py-3">Room</th>
+                          <th className="px-4 py-3">Type</th>
+                          <th className="px-4 py-3">Price</th>
+                          <th className="px-4 py-3">Capacity</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {rooms.map((room) => (
-                          <tr key={room.id} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="px-4 py-3 font-mono text-sm">{room.id}</td>
+                          <tr key={room.id} className="border-b hover:bg-gray-50 text-sm">
+                            <td className="px-4 py-3 font-mono">{room.id}</td>
                             <td className="px-4 py-3">{room.name}</td>
                             <td className="px-4 py-3 capitalize">{room.type}</td>
                             <td className="px-4 py-3">${room.price}/night</td>
                             <td className="px-4 py-3">{room.capacity} Guests</td>
                             <td className="px-4 py-3">
                               {room.available ? (
-                                <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                                  Available
-                                </span>
+                                <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Available</span>
                               ) : (
-                                <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
-                                  Unavailable
-                                </span>
+                                <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Unavailable</span>
                               )}
                             </td>
                             <td className="px-4 py-3">
-                              <button
-                                className="p-1 hover:bg-gray-100 rounded-full transition-colors duration-200"
-                                title="Edit"
-                              >
+                              <button className="p-1 hover:bg-gray-100 rounded-full" title="Edit">
                                 <Pencil size={18} className="text-gray-600" />
                               </button>
                             </td>
@@ -351,8 +322,6 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
               )}
-
-
             </div>
           </div>
         </div>
