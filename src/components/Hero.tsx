@@ -111,7 +111,7 @@ const Hero: React.FC = () => {
             </div>
           </form>
         </div>
-
+          
         {/* Scroll Down Indicator */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-center animate-bounce">
           <p className="text-sm mb-2">Scroll Down</p>
