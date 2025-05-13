@@ -79,20 +79,22 @@ const AdminDashboard: React.FC = () => {
 
   const guests: Guest[] = useMemo(() => {
     const map = new Map<string, Guest>();
-    reservations.forEach((r) => {
-      const key = r.guest_id || r.email || r.id;
-      if (!map.has(key)) {
-        map.set(key, {
-          guestKey: key,
-          first_name: r.first_name,
-          last_name: r.last_name,
-          email: r.email,
-          phone: r.phone,
-          reservations: [],
-        });
-      }
-      map.get(key)!.reservations.push(r);
-    });
+    reservations
+      .filter((r) => r.status === 'checked-in') // Only include checked-in reservations
+      .forEach((r) => {
+        const key = r.guest_id || r.email || r.id;
+        if (!map.has(key)) {
+          map.set(key, {
+            guestKey: key,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            phone: r.phone,
+            reservations: [],
+          });
+        }
+        map.get(key)!.reservations.push(r);
+      });
     return Array.from(map.values());
   }, [reservations]);
 
