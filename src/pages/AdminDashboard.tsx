@@ -12,7 +12,7 @@ import {
 import { rooms } from '../data/rooms';
 import emailjs from 'emailjs-com';
 
-emailjs.init('pyYLR26bzKqt-HopY'); // Replace with your actual PUBLIC KEY
+emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY); // Replace with your actual PUBLIC KEY
 
 type Reservation = {
   id: string;
@@ -43,6 +43,7 @@ const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'reservations' | 'guests' | 'rooms'>('reservations');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState(''); // Add state for search term
 
   useEffect(() => {
     const getReservations = async () => {
@@ -60,6 +61,16 @@ const AdminDashboard: React.FC = () => {
     getReservations();
   }, []);
 
+  // Filter reservations based on the search term
+  const filteredReservations = reservations.filter((r) => {
+    const fullName = `${r.first_name} ${r.last_name}`.toLowerCase();
+    return (
+      fullName.includes(searchTerm.toLowerCase()) ||
+      (r.email?.toLowerCase() ?? '').includes(searchTerm.toLowerCase()) ||
+      (r.room_id ?? '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
   const deleteReservation = async (id: string) => {
     const { error } = await supabase.from('reservations').delete().eq('id', id);
     if (error) return console.error(error.message);
@@ -68,20 +79,22 @@ const AdminDashboard: React.FC = () => {
 
   const guests: Guest[] = useMemo(() => {
     const map = new Map<string, Guest>();
-    reservations.forEach((r) => {
-      const key = r.guest_id || r.email || r.id;
-      if (!map.has(key)) {
-        map.set(key, {
-          guestKey: key,
-          first_name: r.first_name,
-          last_name: r.last_name,
-          email: r.email,
-          phone: r.phone,
-          reservations: [],
-        });
-      }
-      map.get(key)!.reservations.push(r);
-    });
+    reservations
+      .filter((r) => r.status === 'checked-in') // Only include checked-in reservations
+      .forEach((r) => {
+        const key = r.guest_id || r.email || r.id;
+        if (!map.has(key)) {
+          map.set(key, {
+            guestKey: key,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            phone: r.phone,
+            reservations: [],
+          });
+        }
+        map.get(key)!.reservations.push(r);
+      });
     return Array.from(map.values());
   }, [reservations]);
 
@@ -101,7 +114,9 @@ const AdminDashboard: React.FC = () => {
     };
 
     emailjs
-      .send('service_kh7wuol', 'template_6s8eg1n', templateParams) // Replace template ID
+      .send(  import.meta.env.VITE_EMAILJS_SERVICE_ID, // Use service ID from .env
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID, 
+         templateParams) // Replace template ID
       .then((response) => {
         console.log('Email sent successfully:', response.status, response.text);
       })
@@ -181,7 +196,17 @@ const AdminDashboard: React.FC = () => {
             <div className="p-6">
               {activeTab === 'reservations' && (
                 <>
-                  <h2 className="text-2xl font-bold mb-6">Reservations</h2>
+                <div className="flex flex-col md:flex-row items-center justify-between mb-6 space-y-4 md:space-y-0">
+                 <h2 className="text-2xl font-bold">Reservations</h2>
+                    <input
+                    type="text"
+                    placeholder="Search by name, email, or room"
+                    className="px-4 py-2 border border-gray-300 rounded-lg w-full md:w-1/3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                     value={searchTerm} // Bind input value to searchTerm
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  </div>
+
                   {loading ? (
                     <p>Loading…</p>
                   ) : (
@@ -199,7 +224,7 @@ const AdminDashboard: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {reservations.map((r) => (
+                          {filteredReservations.map((r) => (
                             <tr key={r.id} className="border-b hover:bg-gray-50 text-sm">
                               <td className="px-4 py-3 font-mono">{r.id.slice(0, 8)}</td>
                               <td className="px-4 py-3">{r.first_name} {r.last_name}</td>
