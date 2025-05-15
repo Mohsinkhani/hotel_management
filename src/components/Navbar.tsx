@@ -29,7 +29,8 @@ const Navbar: React.FC = () => {
             to="/"
             className="flex items-center text-2xl font-serif font-bold text-blue-900"
           >
-            Lerelaxs Hotel
+            {/* <BookOpen className="mr-2" size={28} /> */}
+            Lerelax Hotel
           </Link>
 
           {/* Desktop Nav */}
