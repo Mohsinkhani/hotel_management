@@ -1,14 +1,29 @@
-import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import React, { useEffect, useState } from 'react';
 import RoomCard from './RoomCard';
 import RoomDetail from './RoomDetail';
+import { supabase } from '../supabaseClient';
+import { Room } from '../types';
 
 const FeaturedRooms: React.FC = () => {
-  const { rooms } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
 
+   useEffect(() => {
+    const fetchRooms = async () => {
+      setLoading(true);
+      const { data, error } = await supabase.from('rooms').select('*').limit(6);;
+      if (error) {
+        console.error('Error fetching rooms:', error.message);
+      } else {
+        setRooms(data as Room[]);
+      }
+      setLoading(false);
+    };
+
+    fetchRooms();
+  }, []);
   // Take the first 3 rooms for featured display
-  const featuredRooms = rooms.slice(0, 3);
 
   const handleRoomClick = (roomId: string) => {
     setSelectedRoom(roomId);
@@ -18,7 +33,7 @@ const FeaturedRooms: React.FC = () => {
     setSelectedRoom(null);
   };
 
-  const selectedRoomData = rooms.find((room) => room.id === selectedRoom);
+  const selectedRoomData = rooms.find((room) => room.id === (selectedRoom !== null ? Number(selectedRoom) : null));
 
   return (
     <div className="py-16 bg-gray-50">
@@ -31,11 +46,11 @@ const FeaturedRooms: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {featuredRooms.map((room) => (
+          {rooms.map((room) => (
             <RoomCard
               key={room.id}
               room={room}
-              onClick={() => handleRoomClick(room.id)}
+              onClick={() => handleRoomClick(room.id.toString())}
             />
           ))}
         </div>
@@ -58,3 +73,7 @@ const FeaturedRooms: React.FC = () => {
 };
 
 export default FeaturedRooms;
+
+
+
+
