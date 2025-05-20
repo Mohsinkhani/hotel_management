@@ -1,15 +1,37 @@
-import { Menu, X, User, Moon, Sun } from 'lucide-react';
-import { useState } from 'react';
+import { Menu, X, User, Moon, Sun, LogOut } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
+import { useProfile } from '../hooks/useProfile';
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const navigate = useNavigate();
+  const profile = useProfile(user?.id);
+  const handleAdminPanel = () => navigate('/admin');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
   const handleBookNow = () => navigate('/booking');
+
+  const handleLogout = async () => {
+    if (window.confirm('Do you want to logout?')) {
+      await supabase.auth.signOut();
+      navigate('/auth');
+    }
+  };
 
   const navLinks = ['Home', 'Rooms', 'Amenities', 'About', 'Contact'];
 
@@ -29,7 +51,6 @@ const Navbar: React.FC = () => {
             to="/"
             className="flex items-center text-2xl font-serif font-bold text-blue-900"
           >
-            {/* <BookOpen className="mr-2" size={28} /> */}
             Lerelax Hotel
           </Link>
 
@@ -38,14 +59,10 @@ const Navbar: React.FC = () => {
             {navLinks.map((label, i) => {
               const link =
                 label === 'Amenities'
-                  ? '/#amenities'
+                  ? '/amenities'
                   : `/${label.toLowerCase() === 'home' ? '' : label.toLowerCase()}`;
 
-              return label === 'Amenities' ? (
-                <Link key={i}  to="/amenities" className={navLinkClass}>
-                {label}
-              </Link>
-              ) : (
+              return (
                 <Link key={i} to={link} className={navLinkClass}>
                   {label}
                 </Link>
@@ -55,6 +72,15 @@ const Navbar: React.FC = () => {
             <button onClick={handleBookNow} className={bookButtonClass}>
               Book Now
             </button>
+
+            {/* Admin Panel button for desktop */}
+            <button
+              onClick={handleAdminPanel}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md font-medium"
+            >
+              Admin Panel
+            </button>
+
             <button
               onClick={toggleDarkMode}
               className={iconButtonClass}
@@ -63,9 +89,27 @@ const Navbar: React.FC = () => {
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
 
-            <Link to="/login" className={iconButtonClass} aria-label="Login">
-              <User size={20} />
-            </Link>
+            {!user ? (
+              <Link to="/auth" className={iconButtonClass} aria-label="Login or Signup">
+                <User size={20} />
+                <span className="ml-2 hidden md:inline">Login / Signup</span>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-2">
+                {profile?.avatar_url && (
+                  <img src={profile.avatar_url} alt="avatar" className="w-8 h-8 rounded-full" />
+                )}
+                <span>{profile?.full_name || user.email}</span>
+                <button
+                  onClick={handleLogout}
+                  className={iconButtonClass}
+                  aria-label="Logout"
+                >
+                  <LogOut size={20} />
+                  <span className="ml-2 hidden md:inline">Logout</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Mobile Toggle Button */}
@@ -86,17 +130,10 @@ const Navbar: React.FC = () => {
             {navLinks.map((label, i) => {
               const link =
                 label === 'Amenities'
-                  ? '/#amenities'
+                  ? '/amenities'
                   : `/${label.toLowerCase() === 'home' ? '' : label.toLowerCase()}`;
 
-              return label === 'Amenities' ? (
-                <Link
-                  key={i} to="/amenities"
-                 className="block text-blue-900 hover:text-green-900 transition-colors duration-200 py-2 font-semibold"
-                >
-                  {label}
-                </Link>
-              ) : (
+              return (
                 <Link
                   key={i}
                   to={link}
@@ -114,6 +151,15 @@ const Navbar: React.FC = () => {
               >
                 Book Now
               </button>
+
+              {/* Admin Panel button for mobile */}
+              <button
+                onClick={handleAdminPanel}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md font-medium"
+              >
+                Admin Panel
+              </button>
+
               <button
                 onClick={toggleDarkMode}
                 className={iconButtonClass}
@@ -121,9 +167,27 @@ const Navbar: React.FC = () => {
               >
                 {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
               </button>
-              <Link to="/login" className={iconButtonClass} aria-label="Login">
-                <User size={20} />
-              </Link>
+              {!user ? (
+                <Link to="/auth" className={iconButtonClass} aria-label="Login or Signup">
+                  <User size={20} />
+                  <span className="ml-2">Login / Signup</span>
+                </Link>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {profile?.avatar_url && (
+                    <img src={profile.avatar_url} alt="avatar" className="w-8 h-8 rounded-full" />
+                  )}
+                  <span>{profile?.full_name || user.email}</span>
+                  <button
+                    onClick={handleLogout}
+                    className={iconButtonClass}
+                    aria-label="Logout"
+                  >
+                    <LogOut size={20} />
+                    <span className="ml-2">Logout</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
