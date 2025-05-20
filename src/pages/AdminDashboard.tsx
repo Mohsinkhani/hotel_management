@@ -9,7 +9,6 @@ import {
   User,
   Pencil,
 } from 'lucide-react';
-import { rooms } from '../data/rooms';
 import emailjs from 'emailjs-com';
 
 emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY); // Replace with your actual PUBLIC KEY
@@ -39,11 +38,30 @@ type Guest = {
   reservations: Reservation[];
 };
 
+type Room = {
+  id: string;
+  name: string;
+  type: string;
+  price: number;
+  capacity: number;
+  available: boolean;
+};
+
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'reservations' | 'guests' | 'rooms'>('reservations');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(''); // Add state for search term
+const [roomList, setRoomList] = useState<Room[]>([]);
+
+  const getRooms = async () => {
+    const { data, error } = await supabase.from('rooms').select('*');
+    if (error) {
+      console.error('Error fetching rooms:', error.message);
+    } else {
+      setRoomList(data as Room[]);
+    }
+  };
 
   useEffect(() => {
     const getReservations = async () => {
@@ -59,6 +77,7 @@ const AdminDashboard: React.FC = () => {
     };
 
     getReservations();
+      getRooms();
   }, []);
 
   // Filter reservations based on the search term
@@ -306,7 +325,16 @@ const AdminDashboard: React.FC = () => {
 
               {activeTab === 'rooms' && (
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6">Rooms</h2>
+<div className="flex justify-between items-center mb-4">
+  <h2 className="text-2xl font-bold text-gray-800">Rooms</h2>
+  <button
+    // onClick={() => setShowAddRoom(true)}
+    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+  >
+    + Add Room
+  </button>
+</div>
+                  
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
@@ -321,7 +349,7 @@ const AdminDashboard: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {rooms.map((room) => (
+                        {roomList.map((room) => (
                           <tr key={room.id} className="border-b hover:bg-gray-50 text-sm">
                             <td className="px-4 py-3 font-mono">{room.id}</td>
                             <td className="px-4 py-3">{room.name}</td>

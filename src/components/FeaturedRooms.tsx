@@ -1,64 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+ 
 import RoomCard from './RoomCard';
 import RoomDetail from './RoomDetail';
 import { supabase } from '../supabaseClient';
 import { Room } from '../types';
-
-const CATEGORY_LIMITS: Record<string, number> = {
-  deluxe: 4,
-  standard: 4,
-  luxury: 2,
-  presidential: 4,
-};
-
+ 
 const FeaturedRooms: React.FC = () => {
-  const { rooms } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
-  const [checkInDate, setCheckInDate] = useState('');
-  const [checkOutDate, setCheckOutDate] = useState('');
-  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
-
-  useEffect(() => {
-    const fetchAvailability = async () => {
-      // If no dates selected, show up to the limit for each category
-      if (!checkInDate || !checkOutDate) {
-        const byCategory: Record<string, Room[]> = {};
-        rooms.forEach(room => {
-          const cat = room.type.toLowerCase();
-          if (!byCategory[cat]) byCategory[cat] = [];
-          if (byCategory[cat].length < (CATEGORY_LIMITS[cat] || 0)) {
-            byCategory[cat].push(room);
-          }
-        });
-        setAvailableRooms(Object.values(byCategory).flat());
-        return;
-      }
-
-      // Fetch reservations with status 'pending' or 'checked-in'
-      const { data: reservations } = await supabase
-        .from('reservations')
-        .select('room_id, status')
-        .in('status', ['pending', 'checked-in'])
-        .lte('check_in_date', checkOutDate)
-        .gte('check_out_date', checkInDate);
-
-      const bookedRoomIds = new Set(reservations?.map(r => r.room_id));
-      const byCategory: Record<string, Room[]> = {};
-      rooms.forEach(room => {
-        const cat = room.type.toLowerCase();
-        if (!bookedRoomIds.has(room.id) && room.available) {
-          if (!byCategory[cat]) byCategory[cat] = [];
-          if (byCategory[cat].length < (CATEGORY_LIMITS[cat] || 0)) {
-            byCategory[cat].push(room);
-          }
-        }
-      });
-      setAvailableRooms(Object.values(byCategory).flat());
-    };
-
-    fetchAvailability();
-  }, [checkInDate, checkOutDate, rooms]);
+ 
 
   const handleRoomClick = (roomId: string) => {
     setSelectedRoom(roomId);
@@ -107,12 +55,7 @@ const FeaturedRooms: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {availableRooms.map((room) => (
-            <RoomCard
-              key={room.id}
-              room={room}
-              // checkInDate={checkInDate}
-              // checkOutDate={checkOutDate}
+ 
               onClick={() => handleRoomClick(room.id.toString())}
             />
           ))}
@@ -141,3 +84,7 @@ const FeaturedRooms: React.FC = () => {
 };
 
 export default FeaturedRooms;
+
+
+
+
