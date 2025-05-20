@@ -11,6 +11,7 @@ const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const profile = useProfile(user?.id);
   const handleAdminPanel = () => navigate('/admin');
+  const ADMIN_EMAIL = 'admin1@lerelax.online';
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -74,12 +75,14 @@ const Navbar: React.FC = () => {
             </button>
 
             {/* Admin Panel button for desktop */}
-            <button
-              onClick={handleAdminPanel}
-              className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md font-medium"
-            >
-              Admin Panel
-            </button>
+           {user && user.email === ADMIN_EMAIL && (
+  <button
+    onClick={handleAdminPanel}
+    className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md font-medium"
+  >
+    Admin Panel
+  </button>
+)}
 
             <button
               onClick={toggleDarkMode}
