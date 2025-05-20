@@ -1,29 +1,12 @@
-import React, { useEffect, useState } from 'react';
+ 
 import RoomCard from './RoomCard';
 import RoomDetail from './RoomDetail';
 import { supabase } from '../supabaseClient';
 import { Room } from '../types';
-
+ 
 const FeaturedRooms: React.FC = () => {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [loading, setLoading] = useState(true);
-
-   useEffect(() => {
-    const fetchRooms = async () => {
-      setLoading(true);
-      const { data, error } = await supabase.from('rooms').select('*').limit(6);;
-      if (error) {
-        console.error('Error fetching rooms:', error.message);
-      } else {
-        setRooms(data as Room[]);
-      }
-      setLoading(false);
-    };
-
-    fetchRooms();
-  }, []);
-  // Take the first 3 rooms for featured display
+ 
 
   const handleRoomClick = (roomId: string) => {
     setSelectedRoom(roomId);
@@ -38,6 +21,32 @@ const FeaturedRooms: React.FC = () => {
   return (
     <div className="py-16 bg-gray-50">
       <div className="container mx-auto px-4 md:px-6">
+        <div className="mb-8 max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-4">Check Availability</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1">Check-in</label>
+              <input
+                type="date"
+                value={checkInDate}
+                onChange={(e) => setCheckInDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Check-out</label>
+              <input
+                type="date"
+                value={checkOutDate}
+                onChange={(e) => setCheckOutDate(e.target.value)}
+                min={checkInDate || new Date().toISOString().split('T')[0]}
+                className="w-full p-2 border rounded"
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="text-center mb-12">
           <h2 className="text-3xl font-serif font-bold text-blue-900 mb-4">Featured Rooms</h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
@@ -46,10 +55,7 @@ const FeaturedRooms: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {rooms.map((room) => (
-            <RoomCard
-              key={room.id}
-              room={room}
+ 
               onClick={() => handleRoomClick(room.id.toString())}
             />
           ))}
@@ -66,7 +72,12 @@ const FeaturedRooms: React.FC = () => {
       </div>
 
       {selectedRoom && selectedRoomData && (
-        <RoomDetail room={selectedRoomData} onClose={handleCloseDetail} />
+        <RoomDetail
+          room={selectedRoomData}
+          onClose={handleCloseDetail}
+          // checkInDate={checkInDate}
+        //   checkOutDate={checkOutDate}
+         />
       )}
     </div>
   );
