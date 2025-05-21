@@ -14,7 +14,7 @@ const CATEGORY_LIMITS: Record<string, number> = {
 };
 
 const FeaturedRooms: React.FC = () => {
-  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
   const [checkInDate, setCheckInDate] = useState('');
   const [checkOutDate, setCheckOutDate] = useState('');
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
@@ -43,7 +43,7 @@ const FeaturedRooms: React.FC = () => {
         .lte('check_in_date', checkOutDate)
         .gte('check_out_date', checkInDate);
 
-      const bookedRoomIds = new Set(reservations?.map(r => r.room_id));
+      const bookedRoomIds = new Set(reservations?.map(r => Number(r.room_id)));
       const byCategory: Record<string, Room[]> = {};
       rooms.forEach(room => {
         const cat = room.type.toLowerCase();
@@ -58,9 +58,10 @@ const FeaturedRooms: React.FC = () => {
     };
 
     fetchAvailability();
-  }, [checkInDate, checkOutDate, rooms]);
+    // eslint-disable-next-line
+  }, [checkInDate, checkOutDate]);
 
-  const handleRoomClick = (roomId: string) => {
+  const handleRoomClick = (roomId: number) => {
     setSelectedRoom(roomId);
   };
 
@@ -68,7 +69,7 @@ const FeaturedRooms: React.FC = () => {
     setSelectedRoom(null);
   };
 
-  const selectedRoomData = rooms.find((room) => room.id === (selectedRoom !== null ? Number(selectedRoom) : null));
+  const selectedRoomData = rooms.find((room) => room.id === selectedRoom);
 
   return (
     <div className="py-16 bg-gray-50">
@@ -111,9 +112,7 @@ const FeaturedRooms: React.FC = () => {
             <RoomCard
               key={room.id}
               room={room}
-              // checkInDate={checkInDate}
-              // checkOutDate={checkOutDate}
-              onClick={() => handleRoomClick(room.id.toString())}
+              onClick={() => handleRoomClick(room.id)}
             />
           ))}
         </div>
@@ -132,16 +131,10 @@ const FeaturedRooms: React.FC = () => {
         <RoomDetail
           room={selectedRoomData}
           onClose={handleCloseDetail}
-          // checkInDate={checkInDate}
-        //   checkOutDate={checkOutDate}
-         />
+        />
       )}
     </div>
   );
 };
 
 export default FeaturedRooms;
-
-
-
-
