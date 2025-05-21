@@ -4,6 +4,7 @@ import RoomCard from './RoomCard';
 import RoomDetail from './RoomDetail';
 import { supabase } from '../supabaseClient';
 import { Room } from '../types';
+import { rooms } from '../data/rooms';
 
 const CATEGORY_LIMITS: Record<string, number> = {
   deluxe: 4,
@@ -13,7 +14,6 @@ const CATEGORY_LIMITS: Record<string, number> = {
 };
 
 const FeaturedRooms: React.FC = () => {
-  const { rooms } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [checkInDate, setCheckInDate] = useState('');
   const [checkOutDate, setCheckOutDate] = useState('');
@@ -141,3 +141,7 @@ const FeaturedRooms: React.FC = () => {
 };
 
 export default FeaturedRooms;
+
+
+
+

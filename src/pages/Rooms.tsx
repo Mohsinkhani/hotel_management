@@ -5,9 +5,11 @@ import RoomCard from '../components/RoomCard';
 import RoomDetail from '../components/RoomDetail';
 import { Room, RoomType } from '../types';
 import { Search, Filter } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 const Rooms: React.FC = () => {
-  const { rooms, isLoading } = useApp();
+const [rooms, setRooms] = useState<Room[]>([]);
+const [isLoading, setIsLoading] = useState(true);
   const [filteredRooms, setFilteredRooms] = useState<Room[]>(rooms);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [filters, setFilters] = useState({
@@ -38,6 +40,24 @@ const Rooms: React.FC = () => {
       }));
     }
   }, []);
+
+  useEffect(() => {
+  const fetchRooms = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase.from('rooms').select('*');
+
+    if (error) {
+      console.error('Error fetching rooms:', error.message);
+      setRooms([]);
+    } else {
+      setRooms(data as Room[]);
+    }
+
+    setIsLoading(false);
+  };
+
+  fetchRooms();
+}, []);
 
   // Apply filters when rooms or filter values change
   useEffect(() => {
@@ -105,7 +125,7 @@ const Rooms: React.FC = () => {
     });
   };
 
-  const selectedRoomData = rooms.find((room) => room.id === selectedRoom);
+  const selectedRoomData = rooms.find((room) => room.id.toString() === selectedRoom);
 
   if (isLoading) {
     return (
@@ -251,7 +271,7 @@ const Rooms: React.FC = () => {
                 <RoomCard
                   key={room.id}
                   room={room}
-                  onClick={() => handleRoomClick(room.id)}
+                  onClick={() => handleRoomClick(room.id.toString())}
                 />
               ))}
             </div>
