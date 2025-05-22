@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
 import Layout from '../components/Layout';
 import RoomCard from '../components/RoomCard';
 import RoomDetail from '../components/RoomDetail';

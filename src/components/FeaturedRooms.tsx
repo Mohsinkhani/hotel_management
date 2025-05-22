@@ -7,7 +7,7 @@ import { Room } from '../types';
 const FeaturedRooms: React.FC = () => {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
    useEffect(() => {
     const fetchRooms = async () => {
