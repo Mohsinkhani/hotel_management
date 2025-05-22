@@ -1,67 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import React, { useEffect, useState } from 'react';
 import RoomCard from './RoomCard';
 import RoomDetail from './RoomDetail';
 import { supabase } from '../supabaseClient';
 import { Room } from '../types';
-import { rooms } from '../data/rooms';
-
-const CATEGORY_LIMITS: Record<string, number> = {
-  deluxe: 4,
-  standard: 4,
-  luxury: 2,
-  presidential: 4,
-};
 
 const FeaturedRooms: React.FC = () => {
-  const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
-  const [checkInDate, setCheckInDate] = useState('');
-  const [checkOutDate, setCheckOutDate] = useState('');
-  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchAvailability = async () => {
-      // If no dates selected, show up to the limit for each category
-      if (!checkInDate || !checkOutDate) {
-        const byCategory: Record<string, Room[]> = {};
-        rooms.forEach(room => {
-          const cat = room.type.toLowerCase();
-          if (!byCategory[cat]) byCategory[cat] = [];
-          if (byCategory[cat].length < (CATEGORY_LIMITS[cat] || 0)) {
-            byCategory[cat].push(room);
-          }
-        });
-        setAvailableRooms(Object.values(byCategory).flat());
-        return;
+   useEffect(() => {
+    const fetchRooms = async () => {
+      setLoading(true);
+      const { data, error } = await supabase.from('rooms').select('*').limit(6);;
+      if (error) {
+        console.error('Error fetching rooms:', error.message);
+      } else {
+        setRooms(data as Room[]);
       }
-
-      // Fetch reservations with status 'pending' or 'checked-in'
-      const { data: reservations } = await supabase
-        .from('reservations')
-        .select('room_id, status')
-        .in('status', ['pending', 'checked-in'])
-        .lte('check_in_date', checkOutDate)
-        .gte('check_out_date', checkInDate);
-
-      const bookedRoomIds = new Set(reservations?.map(r => Number(r.room_id)));
-      const byCategory: Record<string, Room[]> = {};
-      rooms.forEach(room => {
-        const cat = room.type.toLowerCase();
-        if (!bookedRoomIds.has(room.id) && room.available) {
-          if (!byCategory[cat]) byCategory[cat] = [];
-          if (byCategory[cat].length < (CATEGORY_LIMITS[cat] || 0)) {
-            byCategory[cat].push(room);
-          }
-        }
-      });
-      setAvailableRooms(Object.values(byCategory).flat());
+      setLoading(false);
     };
 
-    fetchAvailability();
-    // eslint-disable-next-line
-  }, [checkInDate, checkOutDate]);
+    fetchRooms();
+  }, []);
+  // Take the first 3 rooms for featured display
 
-  const handleRoomClick = (roomId: number) => {
+  const handleRoomClick = (roomId: string) => {
     setSelectedRoom(roomId);
   };
 
@@ -69,37 +33,11 @@ const FeaturedRooms: React.FC = () => {
     setSelectedRoom(null);
   };
 
-  const selectedRoomData = rooms.find((room) => room.id === selectedRoom);
+  const selectedRoomData = rooms.find((room) => room.id === (selectedRoom !== null ? Number(selectedRoom) : null));
 
   return (
     <div className="py-16 bg-gray-50">
       <div className="container mx-auto px-4 md:px-6">
-        <div className="mb-8 max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-lg font-semibold mb-4">Check Availability</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm mb-1">Check-in</label>
-              <input
-                type="date"
-                value={checkInDate}
-                onChange={(e) => setCheckInDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full p-2 border rounded"
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Check-out</label>
-              <input
-                type="date"
-                value={checkOutDate}
-                onChange={(e) => setCheckOutDate(e.target.value)}
-                min={checkInDate || new Date().toISOString().split('T')[0]}
-                className="w-full p-2 border rounded"
-              />
-            </div>
-          </div>
-        </div>
-
         <div className="text-center mb-12">
           <h2 className="text-3xl font-serif font-bold text-blue-900 mb-4">Featured Rooms</h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
@@ -108,11 +46,11 @@ const FeaturedRooms: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {availableRooms.map((room) => (
+          {rooms.map((room) => (
             <RoomCard
               key={room.id}
               room={room}
-              onClick={() => handleRoomClick(room.id)}
+              onClick={() => handleRoomClick(room.id.toString())}
             />
           ))}
         </div>
@@ -128,10 +66,7 @@ const FeaturedRooms: React.FC = () => {
       </div>
 
       {selectedRoom && selectedRoomData && (
-        <RoomDetail
-          room={selectedRoomData}
-          onClose={handleCloseDetail}
-        />
+        <RoomDetail room={selectedRoomData} onClose={handleCloseDetail} />
       )}
     </div>
   );
