@@ -10,6 +10,11 @@ import Layout from './components/Layout';
 import ContactPage from './pages/contactus';
 import BookingForm from './components/BookingForm';
 import { Room } from './types';
+import AuthPage from './pages/AuthPage';
+import UpdatePasswordForm from './auth/UpdatePasswordForm';
+import { AdminRoute } from './components/AdminRoute';
+ 
+
 
 const dummyRoom: Room = {
   id: 1,
@@ -32,15 +37,26 @@ function App() {
     <AppProvider>
         <Layout>
           <Routes>
+            
             <Route path="/" element={<Home />} />
             <Route path="/rooms" element={<Rooms />} />
-            <Route path="/admin" element={<AdminDashboard />} />
+            {/* <Route path="/admin" element={<AdminDashboard />} /> */}
             <Route path="/amenities" element={<Amenities />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/booking" element={<BookingForm room={dummyRoom} onCancel={handleCancelBooking} />} />
+             <Route path="/auth" element={<AuthPage />} />
+             <Route path="/update-password" element={<UpdatePasswordForm />} />
             {/* Optional: add a catch-all route for 404 */}
             <Route path="*" element={<Home />} />
+            <Route
+    path="/admin"
+    element={
+      <AdminRoute>
+        <AdminDashboard />
+      </AdminRoute>
+    }
+  />
           </Routes>
         </Layout>
     </AppProvider>
