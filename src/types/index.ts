@@ -13,6 +13,8 @@ export interface Room {
 export type RoomType = 'standard' | 'deluxe' | 'suite' | 'presidential';
 
 export interface Reservation {
+  email: string | null;
+  phone: string | null;
   last_name: any;
   first_name: any;
   id: string;
