@@ -4,7 +4,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import Home from './pages/Home';
 import Rooms from './pages/Rooms';
-import AdminDashboard from './pages/AdminDashboard';
 import Amenities from './components/Amenities';
 import About from './pages/About';
 import Layout from './components/Layout';
@@ -14,6 +13,7 @@ import { Room } from './types';
 import AuthPage from './pages/AuthPage';
 import UpdatePasswordForm from './auth/UpdatePasswordForm';
 import { AdminRoute } from './components/AdminRoute';
+import AdminDashboard from './pages/Admindashboard/AdminDashboard';
  
 
 
