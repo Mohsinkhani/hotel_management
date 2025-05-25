@@ -12,22 +12,7 @@ import RoomTable from './RoomTable';
 import MonthlyReport from './MonthlyReport';
 emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
 
-// src/types/Reservation.ts
-export type Reservation = {
-  id: string;
-  room_id: string | null;
-  guest_id: string | null;
-  check_in_date: string | null;
-  check_out_date: string | null;
-  status: string | null;
-  adults: number | null;
-  children: number | null;
-  special_requests: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  phone: string | null;
-};
+import type { Reservation } from '../../types';
 
 
 type Room = {
@@ -37,6 +22,7 @@ type Room = {
   price: number;
   capacity: number;
   available: boolean;
+  quantity: number;
 };
 
 const AdminDashboard: React.FC = () => {
@@ -154,7 +140,10 @@ return (
             <div className="p-6">
               RESERVATIONS TABLE
               {activeTab === 'reservations' && (
-             <ReservationTable roomList={roomList} />
+             <ReservationTable
+  roomList={roomList}
+  
+/>
               )}
               
 
@@ -179,7 +168,7 @@ return (
 
               {/* ROOMS TABLE */}
              {activeTab === 'rooms' && (
-            <RoomTable roomList={roomList} />
+            <RoomTable roomList={roomList} reservations={reservations} checkIn={''} checkOut={''} />
         )}
             </div>
           </div>

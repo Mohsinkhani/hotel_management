@@ -23,6 +23,7 @@ type Room = {
   type: string;
   price: number;
   available: boolean;
+  quantity: number;
 };
 
 interface Props {
@@ -50,6 +51,8 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showWalkInForm, setShowWalkInForm] = useState(false);
+  const [walkInCheckIn, setWalkInCheckIn] = useState('');
+  const [walkInCheckOut, setWalkInCheckOut] = useState('');
 
   useEffect(() => {
     const fetchReservations = async () => {
@@ -69,6 +72,15 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     };
     fetchReservations();
   }, [onReservationsChange]);
+
+  function getAvailableRooms(room: Room, reservations: Reservation[], checkIn: string, checkOut: string) {
+    const reservedCount = reservations.filter(r =>
+      String(r.room_id) === String(room.id) &&
+      (r.status === 'confirmed' || r.status === 'checked-in') &&
+      !(r.check_out_date <= checkIn || r.check_in_date >= checkOut)
+    ).length;
+    return room.quantity - reservedCount;
+  }
 
   const filteredReservations = reservations.filter((r) => {
     const guestName = `${r.first_name} ${r.last_name}`.toLowerCase();
@@ -120,6 +132,14 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
       room_id: formData.get('room_id') as string,
       status: 'checked-in',
     };
+    const selectedRoom = roomList.find(r => String(r.id) === newReservation.room_id);
+    const available = selectedRoom
+      ? getAvailableRooms(selectedRoom, reservations, newReservation.check_in_date, newReservation.check_out_date)
+      : 0;
+    if (available <= 0) {
+      alert('No space available for the selected room and dates.');
+      return;
+    }
     const { error, data } = await supabase.from('reservations').insert([newReservation]).select();
     if (error) {
       alert('Failed to add walk-in guest: ' + error.message);
@@ -135,7 +155,6 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
       <div className="p-6 border-b border-gray-100">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <h2 className="text-2xl font-bold text-gray-800">Reservation Management</h2>
-          
           <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="relative flex-grow md:w-64">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -163,7 +182,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
         <div className="p-6 bg-blue-50 border-b border-blue-100">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-blue-800">Add Walk-in Guest</h3>
-            <button 
+            <button
               onClick={() => setShowWalkInForm(false)}
               className="text-gray-500 hover:text-gray-700"
             >
@@ -189,21 +208,42 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date</label>
-              <input name="check_in_date" type="date" required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+              <input
+                name="check_in_date"
+                type="date"
+                required
+                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                value={walkInCheckIn}
+                onChange={e => setWalkInCheckIn(e.target.value)}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date</label>
-              <input name="check_out_date" type="date" required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+              <input
+                name="check_out_date"
+                type="date"
+                required
+                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                value={walkInCheckOut}
+                onChange={e => setWalkInCheckOut(e.target.value)}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
               <select name="room_id" required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                 <option value="">Select Room</option>
-                {roomList.filter(r => r.available).map(room => (
-                  <option key={String(room.id ?? '')} value={String(room.id ?? '')}>
-                    {room.name} ({room.type})
-                  </option>
-                ))}
+                {roomList.filter(r => r.available).map(room => {
+                  const available = getAvailableRooms(room, reservations, walkInCheckIn, walkInCheckOut);
+                  return (
+                    <option
+                      key={String(room.id ?? '')}
+                      value={String(room.id ?? '')}
+                      disabled={walkInCheckIn && walkInCheckOut && available <= 0}
+                    >
+                      {room.name} ({room.type}){walkInCheckIn && walkInCheckOut ? (available <= 0 ? ' - No Space' : ` - ${available} available`) : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div className="md:col-span-2">
@@ -211,16 +251,16 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
               <input name="special_requests" placeholder="Any special requirements..." className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div className="flex gap-3 md:col-span-2 pt-2">
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
                 <Check size={16} />
                 Confirm Walk-in
               </button>
-              <button 
-                type="button" 
-                onClick={() => setShowWalkInForm(false)} 
+              <button
+                type="button"
+                onClick={() => setShowWalkInForm(false)}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cancel
@@ -283,7 +323,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
                         {r.status !== 'confirmed' && (
-                          <button 
+                          <button
                             onClick={() => r.id != null && updateStatus(String(r.id), 'confirmed')}
                             className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
                             title="Confirm"
@@ -292,7 +332,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                           </button>
                         )}
                         {r.status !== 'checked-in' && (
-                          <button 
+                          <button
                             onClick={() => r.id != null && updateStatus(String(r.id), 'checked-in')}
                             className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
                             title="Check In"
@@ -301,7 +341,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                           </button>
                         )}
                         {r.status !== 'checked-out' && r.status === 'checked-in' && (
-                          <button 
+                          <button
                             onClick={() => r.id != null && updateStatus(String(r.id), 'checked-out')}
                             className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-full transition-colors"
                             title="Check Out"
@@ -310,7 +350,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                           </button>
                         )}
                         {r.status !== 'cancelled' && (
-                          <button 
+                          <button
                             onClick={() => r.id != null && updateStatus(String(r.id), 'cancelled')}
                             className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
                             title="Cancel"
@@ -318,7 +358,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                             <X size={18} />
                           </button>
                         )}
-                        <button 
+                        <button
                           className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-full transition-colors"
                           title="Edit"
                         >

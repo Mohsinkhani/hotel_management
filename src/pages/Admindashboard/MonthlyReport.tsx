@@ -1,5 +1,14 @@
 import React from 'react';
-import { Reservation } from './AdminDashboard';
+type Reservation = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  room_id: string;
+  check_in_date: string;
+  check_out_date: string;
+};
 
 type Room = {
   id: number;
