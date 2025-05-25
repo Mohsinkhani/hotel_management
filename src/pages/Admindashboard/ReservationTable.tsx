@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Check, X, LogOut, User, Pencil, Trash2, Search } from 'lucide-react';
+import { Check, X, LogOut, User, Pencil, Trash2, Search, ChevronRight, ChevronLeft } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
 type Reservation = {
@@ -50,7 +50,8 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showWalkInForm, setShowWalkInForm] = useState(false);
-
+ const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(15); // Default to 15 rows per page
   useEffect(() => {
     const fetchReservations = async () => {
       setLoading(true);
@@ -82,6 +83,16 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
       roomName.includes(search)
     );
   });
+  
+  // Pagination logic
+  const indexOfLastRow = currentPage * rowsPerPage;
+  const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+  const currentRows = filteredReservations.slice(indexOfFirstRow, indexOfLastRow);
+  const totalPages = Math.ceil(filteredReservations.length / rowsPerPage);
+
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+  const nextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+  const prevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
 
   const updateStatus = async (id: string, status: string) => {
     const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
@@ -146,7 +157,6 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-            </div>
             <button
               onClick={() => setShowWalkInForm(true)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
@@ -249,8 +259,8 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredReservations.map((r) => {
-                const room = roomList.find(room => String(room.id) === String(r.room_id));
+              {currentRows.map((r) => {
+               const room = roomList.find(room => String(room.id) === String(r.room_id));
                 return (
                   <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -345,8 +355,71 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
         )}
       </div>
 
-      {/* Empty state */}
-      {!loading && filteredReservations.length === 0 && (
+     {/* Pagination controls */}
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">
+                  Rows per page:
+                </span>
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => {
+                    setRowsPerPage(Number(e.target.value));
+                    setCurrentPage(1); // Reset to first page when changing rows per page
+                  }}
+                  className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{indexOfFirstRow + 1}</span> to{' '}
+                  <span className="font-medium">
+                    {Math.min(indexOfLastRow, filteredReservations.length)}
+                  </span>{' '}
+                  of <span className="font-medium">{filteredReservations.length}</span> results
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={prevPage}
+                  disabled={currentPage === 1}
+                  className={`p-1 rounded-md ${currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                
+                <div className="flex gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                    <button
+                      key={number}
+                      onClick={() => paginate(number)}
+                      className={`w-8 h-8 rounded-md text-sm ${currentPage === number ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      {number}
+                    </button>
+                  ))}
+                </div>
+                
+                <button
+                  onClick={nextPage}
+                  disabled={currentPage === totalPages}
+                  className={`p-1 rounded-md ${currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            </div>
+      </div>
+
+      {/* Empty state - modify to check currentRows instead of filteredReservations */}
+      {!loading && currentRows.length === 0 && (
         <div className="p-8 text-center text-gray-500">
           No reservations found matching your criteria
         </div>

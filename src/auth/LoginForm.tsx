@@ -16,8 +16,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onSwitchToSignup, onSwit
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const ADMIN_EMAIL = 'admin1@lerelax.online';
-
+  const ADMIN_EMAILS = [
+    'admin1@lerelax.online',
+    'manager@lerelax.online' // Add your second admin email here
+  ];
 
 
 const handleLogin = async (e: React.FormEvent) => {
@@ -29,7 +31,7 @@ const handleLogin = async (e: React.FormEvent) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     onLogin?.();
-    if (email === ADMIN_EMAIL) {
+    if (ADMIN_EMAILS.includes(email)) {
       navigate('/admin');
     } else {
       navigate('/');

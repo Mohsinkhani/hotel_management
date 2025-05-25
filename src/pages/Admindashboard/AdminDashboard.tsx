@@ -48,6 +48,8 @@ const AdminDashboard: React.FC = () => {
   const now = new Date();
   const [reportMonth, setReportMonth] = useState<number>(now.getMonth() + 1); // 1-12
   const [reportYear, setReportYear] = useState<number>(now.getFullYear());
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const MANAGER_EMAIL = 'manager@lerelax.online';  
 
   // CSV Download Helper
   function downloadCSV(rows: Reservation[], type: string) {
@@ -88,6 +90,9 @@ const AdminDashboard: React.FC = () => {
   };
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+    setUserEmail(data?.user?.email ?? null);
+  });
      const fetchReservations = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -136,7 +141,9 @@ return (
         <div className="container mx-auto px-4 md:px-6">
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
             <div className="border-b flex">
-              {(['reservations', 'guests', 'rooms', 'report'] as const).map((t) => (
+            {(['reservations', 'guests', 'rooms', 'report'] as const).map((t) => {
+    if (t === 'report' && userEmail !== MANAGER_EMAIL) return null;
+    return (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
@@ -148,7 +155,8 @@ return (
                 >
                   {t === 'report' ? 'Monthly Report' : t.charAt(0).toUpperCase() + t.slice(1)}
                 </button>
-              ))}
+              );
+})}
             </div>
 
             <div className="p-6">
@@ -164,7 +172,7 @@ return (
               )}
 
               {/* MONTHLY REPORT */}
-            {activeTab === 'report' && (
+            {activeTab === 'report' && userEmail === MANAGER_EMAIL && (
               <MonthlyReport
     reportMonth={reportMonth}
     setReportMonth={setReportMonth}
@@ -176,7 +184,11 @@ return (
     downloadCSV={downloadCSV}
     />
       )}
-
+{activeTab === 'report' && userEmail !== MANAGER_EMAIL && (
+  <div className="text-red-600 font-bold p-8">
+    You are not authorized to view the monthly report.
+  </div>
+)}
               {/* ROOMS TABLE */}
              {activeTab === 'rooms' && (
             <RoomTable roomList={roomList} />
