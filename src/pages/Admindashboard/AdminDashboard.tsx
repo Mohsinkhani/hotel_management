@@ -1,9 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-import {
 
-  Pencil,
-} from 'lucide-react';
 import emailjs from 'emailjs-com';
 import { supabase } from '../../supabaseClient';
 import ReservationTable from './ReservationTable';
@@ -30,11 +27,11 @@ const AdminDashboard: React.FC = () => {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [roomList, setRoomList] = useState<Room[]>([]);
+  const [monthlyCheckins, setMonthlyCheckins] = useState<any[]>([]);
   // For monthly report
   const now = new Date();
   const [reportMonth, setReportMonth] = useState<number>(now.getMonth() + 1); // 1-12
   const [reportYear, setReportYear] = useState<number>(now.getFullYear());
-
   // CSV Download Helper
   function downloadCSV(rows: Reservation[], type: string) {
     if (!rows.length) return;
@@ -92,27 +89,27 @@ const AdminDashboard: React.FC = () => {
   }, []);
 
   // Monthly report logic
-  const monthlyCheckins = useMemo(() => {
-    return reservations.filter(r => {
-      if (!r.check_in_date) return false;
-      const date = new Date(r.check_in_date);
-      return (
-        date.getMonth() + 1 === reportMonth &&
-        date.getFullYear() === reportYear
-      );
-    });
-  }, [reservations, reportMonth, reportYear]);
+useEffect(() => {
+  const fetchMonthlyCheckins = async () => {
+    const from = `${reportYear}-${String(reportMonth).padStart(2, '0')}-01`;
+    const toMonth = reportMonth === 12 ? 1 : reportMonth + 1;
+    const toYear = reportMonth === 12 ? reportYear + 1 : reportYear;
+    const to = `${toYear}-${String(toMonth).padStart(2, '0')}-01`;
+    const { data, error } = await supabase
+      .from('checkins')
+      .select('*')
+      .gte('check_in_date', from)
+      .lt('check_in_date', to);
+    if (error) {
+      setMonthlyCheckins([]);
+    } else {
+      setMonthlyCheckins(data || []);
+    }
+  };
+  fetchMonthlyCheckins();
+}, [reportMonth, reportYear]);
 
-  const monthlyCheckouts = useMemo(() => {
-    return reservations.filter(r => {
-      if (!r.check_out_date) return false;
-      const date = new Date(r.check_out_date);
-      return (
-        date.getMonth() + 1 === reportMonth &&
-        date.getFullYear() === reportYear
-      );
-    });
-  }, [reservations, reportMonth, reportYear]);
+
 
 
 
@@ -160,7 +157,7 @@ return (
     reportYear={reportYear}
     setReportYear={setReportYear}
     monthlyCheckins={monthlyCheckins}
-    monthlyCheckouts={monthlyCheckouts}
+    monthlyCheckouts={[]}
     roomList={roomList}
     downloadCSV={downloadCSV}
     />

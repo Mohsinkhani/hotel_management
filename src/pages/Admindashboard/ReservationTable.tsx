@@ -95,16 +95,6 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     );
   });
 
-  const updateStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
-    if (error) {
-      alert('Failed to update status: ' + error.message);
-      return;
-    }
-    setReservations((prev) =>
-      prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
-    );
-  };
 
   const deleteReservation = async (id: string) => {
     const { error } = await supabase.from('reservations').delete().eq('id', id);
@@ -114,6 +104,45 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     }
     setReservations((prev) => prev.filter((r) => String(r.id) !== id));
   };
+const updateStatus = async (id: string, status: string) => {
+  const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
+  if (error) {
+    alert('Failed to update status: ' + error.message);
+    return;
+  }
+  setReservations((prev) =>
+    prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
+  );
+
+  // Insert into checkins table if status is confirmed or checked-in
+  if (status === 'confirmed' || status === 'checked-in') {
+    const reservation = reservations.find(r => String(r.id) === id);
+    if (reservation) {
+      // Check if already in checkins table (optional, prevents duplicates)
+      const { data: existingCheckin } = await supabase
+        .from('checkins')
+        .select('id')
+        .eq('reservation_id', reservation.id)
+        .maybeSingle();
+
+      if (!existingCheckin) {
+        const { error: checkinError } = await supabase.from('checkins').insert([{
+          reservation_id: reservation.id,
+          first_name: reservation.first_name,
+          last_name: reservation.last_name,
+          email: reservation.email,
+          phone: reservation.phone,
+          room_id: Number(reservation.room_id),
+          check_in_date: reservation.check_in_date,
+          check_out_date: reservation.check_out_date,
+        }]);
+        if (checkinError) {
+          alert('Failed to add to checkins: ' + checkinError.message);
+        }
+      }
+    }
+  }
+};
 
   const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -238,7 +267,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                     <option
                       key={String(room.id ?? '')}
                       value={String(room.id ?? '')}
-                      disabled={walkInCheckIn && walkInCheckOut && available <= 0}
+                      disabled={!!walkInCheckIn && !!walkInCheckOut && available <= 0}
                     >
                       {room.name} ({room.type}){walkInCheckIn && walkInCheckOut ? (available <= 0 ? ' - No Space' : ` - ${available} available`) : ''}
                     </option>
