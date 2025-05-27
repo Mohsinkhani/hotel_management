@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from 'react';
 
-
 import emailjs from 'emailjs-com';
 import { supabase } from '../../supabaseClient';
 import ReservationTable from './ReservationTable';
 import GuestTable from './GuestTable';
 import RoomTable from './RoomTable';
 import MonthlyReport from './MonthlyReport';
+import RoomStatusDashboard from './RoomStatusBoard'; // <-- Import your RoomStatusDashboard component
 emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
 
 import type { Reservation } from '../../types';
-
 
 type Room = {
   id: number;
@@ -23,7 +22,8 @@ type Room = {
 };
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'reservations' | 'guests' | 'rooms' | 'report'>('reservations');
+  // Add 'roomstatus' to your tab type
+  const [activeTab, setActiveTab] = useState<'reservations' | 'guests' | 'rooms' | 'report' | 'roomstatus'>('reservations');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [roomList, setRoomList] = useState<Room[]>([]);
@@ -32,6 +32,8 @@ const AdminDashboard: React.FC = () => {
   const now = new Date();
   const [reportMonth, setReportMonth] = useState<number>(now.getMonth() + 1); // 1-12
   const [reportYear, setReportYear] = useState<number>(now.getFullYear());
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
   // CSV Download Helper
   function downloadCSV(rows: Reservation[], type: string) {
     if (!rows.length) return;
@@ -71,106 +73,107 @@ const AdminDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-     const fetchReservations = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('reservations')
-      .select('*')
-      .order('check_in_date', { ascending: false });
-    if (error) {
-      setReservations([]);
-    } else {
-      setReservations(data as Reservation[]);
-    }
-    setLoading(false);
-  };
-  fetchReservations();
+    supabase.auth.getUser().then(({ data }) => {
+      setUserEmail(data?.user?.email ?? null);
+    });
+    const fetchReservations = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('reservations')
+        .select('*')
+        .order('check_in_date', { ascending: false });
+      if (error) {
+        setReservations([]);
+      } else {
+        setReservations(data as Reservation[]);
+      }
+      setLoading(false);
+    };
+    fetchReservations();
     getRooms();
   }, []);
 
   // Monthly report logic
-useEffect(() => {
-  const fetchMonthlyCheckins = async () => {
-    const from = `${reportYear}-${String(reportMonth).padStart(2, '0')}-01`;
-    const toMonth = reportMonth === 12 ? 1 : reportMonth + 1;
-    const toYear = reportMonth === 12 ? reportYear + 1 : reportYear;
-    const to = `${toYear}-${String(toMonth).padStart(2, '0')}-01`;
-    const { data, error } = await supabase
-      .from('checkins')
-      .select('*')
-      .gte('check_in_date', from)
-      .lt('check_in_date', to);
-    if (error) {
-      setMonthlyCheckins([]);
-    } else {
-      setMonthlyCheckins(data || []);
-    }
-  };
-  fetchMonthlyCheckins();
-}, [reportMonth, reportYear]);
+  useEffect(() => {
+    const fetchMonthlyCheckins = async () => {
+      const from = `${reportYear}-${String(reportMonth).padStart(2, '0')}-01`;
+      const toMonth = reportMonth === 12 ? 1 : reportMonth + 1;
+      const toYear = reportMonth === 12 ? reportYear + 1 : reportYear;
+      const to = `${toYear}-${String(toMonth).padStart(2, '0')}-01`;
+      const { data, error } = await supabase
+        .from('checkins')
+        .select('*')
+        .gte('check_in_date', from)
+        .lt('check_in_date', to);
+      if (error) {
+        setMonthlyCheckins([]);
+      } else {
+        setMonthlyCheckins(data || []);
+      }
+    };
+    fetchMonthlyCheckins();
+  }, [reportMonth, reportYear]);
 
+  return (
+    <div className="min-h-screen bg-gray-50 pt-24 pb-12">
+      <div className="container mx-auto px-4 md:px-6">
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="border-b flex">
+            {(['reservations', 'guests', 'rooms', 'report', 'roomstatus'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setActiveTab(t)}
+                className={`px-6 py-4 font-medium ${
+                  activeTab === t
+                    ? 'text-blue-900 border-b-2 border-blue-900'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {t === 'report'
+                  ? 'Monthly Report'
+                  : t === 'roomstatus'
+                  ? 'Room Status'
+                  : t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
 
+          <div className="p-6">
+            {/* RESERVATIONS TABLE */}
+            {activeTab === 'reservations' && (
+              <ReservationTable roomList={roomList} />
+            )}
 
-
-
-
-return (
-      <div className="min-h-screen bg-gray-50 pt-24 pb-12">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="border-b flex">
-              {(['reservations', 'guests', 'rooms', 'report'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setActiveTab(t)}
-                  className={`px-6 py-4 font-medium ${
-                    activeTab === t
-                      ? 'text-blue-900 border-b-2 border-blue-900'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {t === 'report' ? 'Monthly Report' : t.charAt(0).toUpperCase() + t.slice(1)}
-                </button>
-              ))}
-            </div>
-
-            <div className="p-6">
-              RESERVATIONS TABLE
-              {activeTab === 'reservations' && (
-             <ReservationTable
-  roomList={roomList}
-  
-/>
-              )}
-              
-
-              {/* GUESTS TABLE */}
+            {/* GUESTS TABLE */}
             {activeTab === 'guests' && (
-            <GuestTable roomList={roomList} loading={loading} reservations={reservations} />
-              )}
+              <GuestTable roomList={roomList} loading={loading} reservations={reservations} />
+            )}
 
-              {/* MONTHLY REPORT */}
+            {/* MONTHLY REPORT */}
             {activeTab === 'report' && (
               <MonthlyReport
-    reportMonth={reportMonth}
-    setReportMonth={setReportMonth}
-    reportYear={reportYear}
-    setReportYear={setReportYear}
-    monthlyCheckins={monthlyCheckins}
-    monthlyCheckouts={[]}
-    roomList={roomList}
-    downloadCSV={downloadCSV}
-    />
-      )}
+                reportMonth={reportMonth}
+                setReportMonth={setReportMonth}
+                reportYear={reportYear}
+                setReportYear={setReportYear}
+                monthlyCheckins={monthlyCheckins}
+                monthlyCheckouts={monthlyCheckins}
+                roomList={roomList}
+                downloadCSV={downloadCSV}
+              />
+            )}
 
-              {/* ROOMS TABLE */}
-             {activeTab === 'rooms' && (
-            <RoomTable roomList={roomList} reservations={reservations} checkIn={''} checkOut={''} />
-        )}
-            </div>
+            {/* ROOMS TABLE */}
+            {activeTab === 'rooms' && (
+              <RoomTable roomList={roomList} reservations={reservations} checkIn={''} checkOut={''} />
+            )}
+
+            {/* ROOM STATUS DASHBOARD */}
+            {activeTab === 'roomstatus' && <RoomStatusDashboard />}
           </div>
         </div>
       </div>
+    </div>
   );
 };
 

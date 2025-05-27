@@ -50,11 +50,12 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showWalkInForm, setShowWalkInForm] = useState(false);
-  const [walkInCheckIn, setWalkInCheckIn] = useState('');
-  const [walkInCheckOut, setWalkInCheckOut] = useState('');
-
-  useEffect(() => {
+const [showWalkInForm, setShowWalkInForm] = useState(false);
+const [walkInCheckIn, setWalkInCheckIn] = useState('');
+const [walkInCheckOut, setWalkInCheckOut] = useState('');
+const [currentPage, setCurrentPage] = useState(1);
+const [rowsPerPage, setRowsPerPage] = useState(15); // Default to 15 rows per page
+useEffect(() => {
     const fetchReservations = async () => {
       setLoading(true);
       const { data, error } = await supabase
@@ -144,39 +145,41 @@ const updateStatus = async (id: string, status: string) => {
   }
 };
 
-  const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const newReservation = {
-      first_name: formData.get('first_name') as string,
-      last_name: formData.get('last_name') as string,
-      email: formData.get('email') as string,
-      phone: formData.get('phone') as string,
-      check_in_date: formData.get('check_in_date') as string,
-      check_out_date: formData.get('check_out_date') as string,
-      adults: Number(formData.get('adults')),
-      children: Number(formData.get('children')),
-      special_requests: formData.get('special_requests') as string,
-      room_id: formData.get('room_id') as string,
-      status: 'checked-in',
-    };
-    const selectedRoom = roomList.find(r => String(r.id) === newReservation.room_id);
-    const available = selectedRoom
-      ? getAvailableRooms(selectedRoom, reservations, newReservation.check_in_date, newReservation.check_out_date)
-      : 0;
-    if (available <= 0) {
-      alert('No space available for the selected room and dates.');
-      return;
-    }
-    const { error, data } = await supabase.from('reservations').insert([newReservation]).select();
-    if (error) {
-      alert('Failed to add walk-in guest: ' + error.message);
-    } else {
-      setReservations((prev) => [data[0], ...prev]);
-      setShowWalkInForm(false);
-    }
+const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  const form = e.target as HTMLFormElement;
+  const formData = new FormData(form);
+  const newReservation = {
+    first_name: formData.get('first_name') as string,
+    last_name: formData.get('last_name') as string,
+    email: formData.get('email') as string,
+    phone: formData.get('phone') as string,
+    check_in_date: formData.get('check_in_date') as string,
+    check_out_date: formData.get('check_out_date') as string,
+    adults: Number(formData.get('adults')),
+    children: Number(formData.get('children')),
+    special_requests: formData.get('special_requests') as string,
+    room_id: formData.get('room_id') as string,
+    status: 'checked-in',
   };
+  const selectedRoom = roomList.find(r => String(r.id) === newReservation.room_id);
+  const available = selectedRoom
+    ? getAvailableRooms(selectedRoom, reservations, newReservation.check_in_date, newReservation.check_out_date)
+    : 0;
+  if (available <= 0) {
+    alert('No space available for the selected room and dates.');
+    return;
+  }
+  const { error, data } = await supabase.from('reservations').insert([newReservation]).select();
+  if (error) {
+    alert('Failed to add walk-in guest: ' + error.message);
+  } else {
+    setReservations((prev) => [data[0], ...prev]);
+    setShowWalkInForm(false);
+    setWalkInCheckIn('');
+    setWalkInCheckOut('');
+  }
+};
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
