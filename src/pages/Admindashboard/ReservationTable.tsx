@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Check, X, LogOut, User, Pencil, Trash2, Search } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
+// ... (keep all type definitions and interfaces exactly the same)
+
 type Reservation = {
   id: string | number;
   first_name: string;
@@ -50,12 +52,13 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-const [showWalkInForm, setShowWalkInForm] = useState(false);
-const [walkInCheckIn, setWalkInCheckIn] = useState('');
-const [walkInCheckOut, setWalkInCheckOut] = useState('');
-const [currentPage, setCurrentPage] = useState(1);
-const [rowsPerPage, setRowsPerPage] = useState(15); // Default to 15 rows per page
-useEffect(() => {
+  const [showWalkInForm, setShowWalkInForm] = useState(false);
+  const [walkInCheckIn, setWalkInCheckIn] = useState('');
+  const [walkInCheckOut, setWalkInCheckOut] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
+
+  useEffect(() => {
     const fetchReservations = async () => {
       setLoading(true);
       const { data, error } = await supabase
@@ -89,6 +92,7 @@ useEffect(() => {
     const room = roomList.find(room => String(room.id) === String(r.room_id));
     const roomName = room ? String(room.name).toLowerCase() : '';
     const search = searchTerm.toLowerCase();
+
     return (
       guestName.includes(search) ||
       email.includes(search) ||
@@ -96,6 +100,16 @@ useEffect(() => {
     );
   });
 
+  // Pagination calculations
+  const indexOfLastRow = currentPage * rowsPerPage;
+  const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+  const currentReservations = filteredReservations.slice(indexOfFirstRow, indexOfLastRow);
+  const totalPages = Math.ceil(filteredReservations.length / rowsPerPage);
+
+  // Reset to first page when search results change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filteredReservations.length]);
 
   const deleteReservation = async (id: string) => {
     const { error } = await supabase.from('reservations').delete().eq('id', id);
@@ -105,81 +119,82 @@ useEffect(() => {
     }
     setReservations((prev) => prev.filter((r) => String(r.id) !== id));
   };
-const updateStatus = async (id: string, status: string) => {
-  const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
-  if (error) {
-    alert('Failed to update status: ' + error.message);
-    return;
-  }
-  setReservations((prev) =>
-    prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
-  );
 
-  // Insert into checkins table if status is confirmed or checked-in
-  if (status === 'confirmed' || status === 'checked-in') {
-    const reservation = reservations.find(r => String(r.id) === id);
-    if (reservation) {
-      // Check if already in checkins table (optional, prevents duplicates)
-      const { data: existingCheckin } = await supabase
-        .from('checkins')
-        .select('id')
-        .eq('reservation_id', reservation.id)
-        .maybeSingle();
+  const updateStatus = async (id: string, status: string) => {
+    const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
+    if (error) {
+      alert('Failed to update status: ' + error.message);
+      return;
+    }
+    setReservations((prev) =>
+      prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
+    );
 
-      if (!existingCheckin) {
-        const { error: checkinError } = await supabase.from('checkins').insert([{
-          reservation_id: reservation.id,
-          first_name: reservation.first_name,
-          last_name: reservation.last_name,
-          email: reservation.email,
-          phone: reservation.phone,
-          room_id: Number(reservation.room_id),
-          check_in_date: reservation.check_in_date,
-          check_out_date: reservation.check_out_date,
-        }]);
-        if (checkinError) {
-          alert('Failed to add to checkins: ' + checkinError.message);
+    // Insert into checkins table if status is confirmed or checked-in
+    if (status === 'confirmed' || status === 'checked-in') {
+      const reservation = reservations.find(r => String(r.id) === id);
+      if (reservation) {
+        // Check if already in checkins table (optional, prevents duplicates)
+        const { data: existingCheckin } = await supabase
+          .from('checkins')
+          .select('id')
+          .eq('reservation_id', reservation.id)
+          .maybeSingle();
+
+        if (!existingCheckin) {
+          const { error: checkinError } = await supabase.from('checkins').insert([{
+            reservation_id: reservation.id,
+            first_name: reservation.first_name,
+            last_name: reservation.last_name,
+            email: reservation.email,
+            phone: reservation.phone,
+            room_id: Number(reservation.room_id),
+            check_in_date: reservation.check_in_date,
+            check_out_date: reservation.check_out_date,
+          }]);
+          if (checkinError) {
+            alert('Failed to add to checkins: ' + checkinError.message);
+          }
         }
       }
     }
-  }
-};
-
-const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  const form = e.target as HTMLFormElement;
-  const formData = new FormData(form);
-  const newReservation = {
-    first_name: formData.get('first_name') as string,
-    last_name: formData.get('last_name') as string,
-    email: formData.get('email') as string,
-    phone: formData.get('phone') as string,
-    check_in_date: formData.get('check_in_date') as string,
-    check_out_date: formData.get('check_out_date') as string,
-    adults: Number(formData.get('adults')),
-    children: Number(formData.get('children')),
-    special_requests: formData.get('special_requests') as string,
-    room_id: formData.get('room_id') as string,
-    status: 'checked-in',
   };
-  const selectedRoom = roomList.find(r => String(r.id) === newReservation.room_id);
-  const available = selectedRoom
-    ? getAvailableRooms(selectedRoom, reservations, newReservation.check_in_date, newReservation.check_out_date)
-    : 0;
-  if (available <= 0) {
-    alert('No space available for the selected room and dates.');
-    return;
-  }
-  const { error, data } = await supabase.from('reservations').insert([newReservation]).select();
-  if (error) {
-    alert('Failed to add walk-in guest: ' + error.message);
-  } else {
-    setReservations((prev) => [data[0], ...prev]);
-    setShowWalkInForm(false);
-    setWalkInCheckIn('');
-    setWalkInCheckOut('');
-  }
-};
+
+  const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const newReservation = {
+      first_name: formData.get('first_name') as string,
+      last_name: formData.get('last_name') as string,
+      email: formData.get('email') as string,
+      phone: formData.get('phone') as string,
+      check_in_date: formData.get('check_in_date') as string,
+      check_out_date: formData.get('check_out_date') as string,
+      adults: Number(formData.get('adults')),
+      children: Number(formData.get('children')),
+      special_requests: formData.get('special_requests') as string,
+      room_id: formData.get('room_id') as string,
+      status: 'checked-in',
+    };
+    const selectedRoom = roomList.find(r => String(r.id) === newReservation.room_id);
+    const available = selectedRoom
+      ? getAvailableRooms(selectedRoom, reservations, newReservation.check_in_date, newReservation.check_out_date)
+      : 0;
+    if (available <= 0) {
+      alert('No space available for the selected room and dates.');
+      return;
+    }
+    const { error, data } = await supabase.from('reservations').insert([newReservation]).select();
+    if (error) {
+      alert('Failed to add walk-in guest: ' + error.message);
+    } else {
+      setReservations((prev) => [data[0], ...prev]);
+      setShowWalkInForm(false);
+      setWalkInCheckIn('');
+      setWalkInCheckOut('');
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
@@ -309,111 +324,159 @@ const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredReservations.map((r) => {
-                const room = roomList.find(room => String(room.id) === String(r.room_id));
-                return (
-                  <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium">
-                          {r.first_name.charAt(0)}{r.last_name.charAt(0)}
+          <>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {currentReservations.map((r) => {
+                  const room = roomList.find(room => String(room.id) === String(r.room_id));
+                  return (
+                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium">
+                            {r.first_name.charAt(0)}{r.last_name.charAt(0)}
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">{r.first_name} {r.last_name}</div>
+                            <div className="text-sm text-gray-500">{r.email}</div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{r.first_name} {r.last_name}</div>
-                          <div className="text-sm text-gray-500">{r.email}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{room ? room.name : r.room_id}</div>
+                        <div className="text-sm text-gray-500">{room ? room.type : 'N/A'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{room ? `$${room.price}` : '-'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          <div className="font-medium">{r.check_in_date}</div>
+                          <div className="text-gray-500">to {r.check_out_date}</div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{room ? room.name : r.room_id}</div>
-                      <div className="text-sm text-gray-500">{room ? room.type : 'N/A'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{room ? `$${room.price}` : '-'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        <div className="font-medium">{r.check_in_date}</div>
-                        <div className="text-gray-500">to {r.check_out_date}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {badge(r.status)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
-                        {r.status !== 'confirmed' && (
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {badge(r.status)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          {r.status !== 'confirmed' && (
+                            <button
+                              onClick={() => r.id != null && updateStatus(String(r.id), 'confirmed')}
+                              className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
+                              title="Confirm"
+                            >
+                              <Check size={18} />
+                            </button>
+                          )}
+                          {r.status !== 'checked-in' && (
+                            <button
+                              onClick={() => r.id != null && updateStatus(String(r.id), 'checked-in')}
+                              className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
+                              title="Check In"
+                            >
+                              <User size={18} />
+                            </button>
+                          )}
+                          {r.status !== 'checked-out' && r.status === 'checked-in' && (
+                            <button
+                              onClick={() => r.id != null && updateStatus(String(r.id), 'checked-out')}
+                              className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-full transition-colors"
+                              title="Check Out"
+                            >
+                              <LogOut size={18} />
+                            </button>
+                          )}
+                          {r.status !== 'cancelled' && (
+                            <button
+                              onClick={() => r.id != null && updateStatus(String(r.id), 'cancelled')}
+                              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
+                              title="Cancel"
+                            >
+                              <X size={18} />
+                            </button>
+                          )}  
                           <button
-                            onClick={() => r.id != null && updateStatus(String(r.id), 'confirmed')}
-                            className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
-                            title="Confirm"
+                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-full transition-colors"
+                            title="Edit"
                           >
-                            <Check size={18} />
+                            <Pencil size={18} />
                           </button>
-                        )}
-                        {r.status !== 'checked-in' && (
                           <button
-                            onClick={() => r.id != null && updateStatus(String(r.id), 'checked-in')}
-                            className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
-                            title="Check In"
+                            onClick={() => {
+                              if (r.id != null && confirm('Are you sure you want to delete this reservation?')) {
+                                deleteReservation(String(r.id));
+                              }
+                            }}
+                            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                            title="Delete"
                           >
-                            <User size={18} />
+                            <Trash2 size={18} />
                           </button>
-                        )}
-                        {r.status !== 'checked-out' && r.status === 'checked-in' && (
-                          <button
-                            onClick={() => r.id != null && updateStatus(String(r.id), 'checked-out')}
-                            className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-full transition-colors"
-                            title="Check Out"
-                          >
-                            <LogOut size={18} />
-                          </button>
-                        )}
-                        {r.status !== 'cancelled' && (
-                          <button
-                            onClick={() => r.id != null && updateStatus(String(r.id), 'cancelled')}
-                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
-                            title="Cancel"
-                          >
-                            <X size={18} />
-                          </button>
-                        )}
-                        <button
-                          className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-full transition-colors"
-                          title="Edit"
-                        >
-                          <Pencil size={18} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (r.id != null && confirm('Are you sure you want to delete this reservation?')) {
-                              deleteReservation(String(r.id));
-                            }
-                          }}
-                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Pagination Controls */}
+            {filteredReservations.length > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-700">
+                    Showing {indexOfFirstRow + 1} to{' '}
+                    {Math.min(indexOfLastRow, filteredReservations.length)} of{' '}
+                    {filteredReservations.length}
+                  </span>
+                  <select
+                    value={rowsPerPage}
+                    onChange={(e) => {
+                      setRowsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+                  >
+                    {[15, 30, 50, 100].map((size) => (
+                      <option key={size} value={size}>
+                        Show {size}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-3 py-1 text-sm text-gray-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
