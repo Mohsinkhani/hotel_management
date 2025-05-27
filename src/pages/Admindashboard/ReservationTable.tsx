@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Check, X, LogOut, User, Pencil, Trash2, Search } from 'lucide-react';
+import { Check, X, LogOut, User, Pencil, Trash2, Search, ChevronRight, ChevronLeft } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
-
-// ... (keep all type definitions and interfaces exactly the same)
 
 type Reservation = {
   id: string | number;
@@ -49,16 +47,16 @@ function badge(status: string) {
 }
 
 const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) => {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showWalkInForm, setShowWalkInForm] = useState(false);
-  const [walkInCheckIn, setWalkInCheckIn] = useState('');
-  const [walkInCheckOut, setWalkInCheckOut] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(15);
+const [reservations, setReservations] = useState<Reservation[]>([]);
+const [loading, setLoading] = useState(true);
+const [searchTerm, setSearchTerm] = useState('');
+const [showWalkInForm, setShowWalkInForm] = useState(false);
+const [walkInCheckIn, setWalkInCheckIn] = useState('');
+const [walkInCheckOut, setWalkInCheckOut] = useState('');
+const [currentPage, setCurrentPage] = useState(1);
+const [rowsPerPage, setRowsPerPage] = useState(15); // Default to 15 rows per page
 
-  useEffect(() => {
+useEffect(() => {
     const fetchReservations = async () => {
       setLoading(true);
       const { data, error } = await supabase
@@ -92,24 +90,23 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     const room = roomList.find(room => String(room.id) === String(r.room_id));
     const roomName = room ? String(room.name).toLowerCase() : '';
     const search = searchTerm.toLowerCase();
-
     return (
       guestName.includes(search) ||
       email.includes(search) ||
       roomName.includes(search)
     );
   });
-
-  // Pagination calculations
+  
+  // Pagination logic
   const indexOfLastRow = currentPage * rowsPerPage;
   const indexOfFirstRow = indexOfLastRow - rowsPerPage;
-  const currentReservations = filteredReservations.slice(indexOfFirstRow, indexOfLastRow);
+  const currentRows = filteredReservations.slice(indexOfFirstRow, indexOfLastRow);
   const totalPages = Math.ceil(filteredReservations.length / rowsPerPage);
 
-  // Reset to first page when search results change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filteredReservations.length]);
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+  const nextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+  const prevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
+
 
   const deleteReservation = async (id: string) => {
     const { error } = await supabase.from('reservations').delete().eq('id', id);
@@ -119,46 +116,45 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     }
     setReservations((prev) => prev.filter((r) => String(r.id) !== id));
   };
+const updateStatus = async (id: string, status: string) => {
+  const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
+  if (error) {
+    alert('Failed to update status: ' + error.message);
+    return;
+  }
+  setReservations((prev) =>
+    prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
+  );
 
-  const updateStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
-    if (error) {
-      alert('Failed to update status: ' + error.message);
-      return;
-    }
-    setReservations((prev) =>
-      prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
-    );
+  // Insert into checkins table if status is confirmed or checked-in
+  if (status === 'confirmed' || status === 'checked-in') {
+    const reservation = reservations.find(r => String(r.id) === id);
+    if (reservation) {
+      // Check if already in checkins table (optional, prevents duplicates)
+      const { data: existingCheckin } = await supabase
+        .from('checkins')
+        .select('id')
+        .eq('reservation_id', reservation.id)
+        .maybeSingle();
 
-    // Insert into checkins table if status is confirmed or checked-in
-    if (status === 'confirmed' || status === 'checked-in') {
-      const reservation = reservations.find(r => String(r.id) === id);
-      if (reservation) {
-        // Check if already in checkins table (optional, prevents duplicates)
-        const { data: existingCheckin } = await supabase
-          .from('checkins')
-          .select('id')
-          .eq('reservation_id', reservation.id)
-          .maybeSingle();
-
-        if (!existingCheckin) {
-          const { error: checkinError } = await supabase.from('checkins').insert([{
-            reservation_id: reservation.id,
-            first_name: reservation.first_name,
-            last_name: reservation.last_name,
-            email: reservation.email,
-            phone: reservation.phone,
-            room_id: Number(reservation.room_id),
-            check_in_date: reservation.check_in_date,
-            check_out_date: reservation.check_out_date,
-          }]);
-          if (checkinError) {
-            alert('Failed to add to checkins: ' + checkinError.message);
-          }
+      if (!existingCheckin) {
+        const { error: checkinError } = await supabase.from('checkins').insert([{
+          reservation_id: reservation.id,
+          first_name: reservation.first_name,
+          last_name: reservation.last_name,
+          email: reservation.email,
+          phone: reservation.phone,
+          room_id: Number(reservation.room_id),
+          check_in_date: reservation.check_in_date,
+          check_out_date: reservation.check_out_date,
+        }]);
+        if (checkinError) {
+          alert('Failed to add to checkins: ' + checkinError.message);
         }
       }
     }
-  };
+  }
+};
 
   const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -191,8 +187,6 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     } else {
       setReservations((prev) => [data[0], ...prev]);
       setShowWalkInForm(false);
-      setWalkInCheckIn('');
-      setWalkInCheckOut('');
     }
   };
 
@@ -212,7 +206,6 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-            </div>
             <button
               onClick={() => setShowWalkInForm(true)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
@@ -324,164 +317,179 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         ) : (
-          <>
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {currentReservations.map((r) => {
-                  const room = roomList.find(room => String(room.id) === String(r.room_id));
-                  return (
-                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium">
-                            {r.first_name.charAt(0)}{r.last_name.charAt(0)}
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{r.first_name} {r.last_name}</div>
-                            <div className="text-sm text-gray-500">{r.email}</div>
-                          </div>
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {currentRows.map((r) => {
+               const room = roomList.find(room => String(room.id) === String(r.room_id));
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium">
+                          {r.first_name.charAt(0)}{r.last_name.charAt(0)}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{room ? room.name : r.room_id}</div>
-                        <div className="text-sm text-gray-500">{room ? room.type : 'N/A'}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{room ? `$${room.price}` : '-'}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          <div className="font-medium">{r.check_in_date}</div>
-                          <div className="text-gray-500">to {r.check_out_date}</div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{r.first_name} {r.last_name}</div>
+                          <div className="text-sm text-gray-500">{r.email}</div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {badge(r.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end space-x-2">
-                          {r.status !== 'confirmed' && (
-                            <button
-                              onClick={() => r.id != null && updateStatus(String(r.id), 'confirmed')}
-                              className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
-                              title="Confirm"
-                            >
-                              <Check size={18} />
-                            </button>
-                          )}
-                          {r.status !== 'checked-in' && (
-                            <button
-                              onClick={() => r.id != null && updateStatus(String(r.id), 'checked-in')}
-                              className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
-                              title="Check In"
-                            >
-                              <User size={18} />
-                            </button>
-                          )}
-                          {r.status !== 'checked-out' && r.status === 'checked-in' && (
-                            <button
-                              onClick={() => r.id != null && updateStatus(String(r.id), 'checked-out')}
-                              className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-full transition-colors"
-                              title="Check Out"
-                            >
-                              <LogOut size={18} />
-                            </button>
-                          )}
-                          {r.status !== 'cancelled' && (
-                            <button
-                              onClick={() => r.id != null && updateStatus(String(r.id), 'cancelled')}
-                              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
-                              title="Cancel"
-                            >
-                              <X size={18} />
-                            </button>
-                          )}  
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{room ? room.name : r.room_id}</div>
+                      <div className="text-sm text-gray-500">{room ? room.type : 'N/A'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{room ? `$${room.price}` : '-'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        <div className="font-medium">{r.check_in_date}</div>
+                        <div className="text-gray-500">to {r.check_out_date}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {badge(r.status)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end space-x-2">
+                        {r.status !== 'confirmed' && (
                           <button
-                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-full transition-colors"
-                            title="Edit"
+                            onClick={() => r.id != null && updateStatus(String(r.id), 'confirmed')}
+                            className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
+                            title="Confirm"
                           >
-                            <Pencil size={18} />
+                            <Check size={18} />
                           </button>
+                        )}
+                        {r.status !== 'checked-in' && (
                           <button
-                            onClick={() => {
-                              if (r.id != null && confirm('Are you sure you want to delete this reservation?')) {
-                                deleteReservation(String(r.id));
-                              }
-                            }}
-                            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                            title="Delete"
+                            onClick={() => r.id != null && updateStatus(String(r.id), 'checked-in')}
+                            className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
+                            title="Check In"
                           >
-                            <Trash2 size={18} />
+                            <User size={18} />
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {/* Pagination Controls */}
-            {filteredReservations.length > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-700">
-                    Showing {indexOfFirstRow + 1} to{' '}
-                    {Math.min(indexOfLastRow, filteredReservations.length)} of{' '}
-                    {filteredReservations.length}
-                  </span>
-                  <select
-                    value={rowsPerPage}
-                    onChange={(e) => {
-                      setRowsPerPage(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="border border-gray-300 rounded-md px-2 py-1 text-sm"
-                  >
-                    {[15, 30, 50, 100].map((size) => (
-                      <option key={size} value={size}>
-                        Show {size}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-3 py-1 text-sm text-gray-700">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
+                        )}
+                        {r.status !== 'checked-out' && r.status === 'checked-in' && (
+                          <button
+                            onClick={() => r.id != null && updateStatus(String(r.id), 'checked-out')}
+                            className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-full transition-colors"
+                            title="Check Out"
+                          >
+                            <LogOut size={18} />
+                          </button>
+                        )}
+                        {r.status !== 'cancelled' && (
+                          <button
+                            onClick={() => r.id != null && updateStatus(String(r.id), 'cancelled')}
+                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
+                            title="Cancel"
+                          >
+                            <X size={18} />
+                          </button>
+                        )}
+                        <button
+                          className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-full transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={18} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (r.id != null && confirm('Are you sure you want to delete this reservation?')) {
+                              deleteReservation(String(r.id));
+                            }
+                          }}
+                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
-      {/* Empty state */}
-      {!loading && filteredReservations.length === 0 && (
+     {/* Pagination controls */}
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">
+                  Rows per page:
+                </span>
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => {
+                    setRowsPerPage(Number(e.target.value));
+                    setCurrentPage(1); // Reset to first page when changing rows per page
+                  }}
+                  className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{indexOfFirstRow + 1}</span> to{' '}
+                  <span className="font-medium">
+                    {Math.min(indexOfLastRow, filteredReservations.length)}
+                  </span>{' '}
+                  of <span className="font-medium">{filteredReservations.length}</span> results
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={prevPage}
+                  disabled={currentPage === 1}
+                  className={`p-1 rounded-md ${currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                
+                <div className="flex gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                    <button
+                      key={number}
+                      onClick={() => paginate(number)}
+                      className={`w-8 h-8 rounded-md text-sm ${currentPage === number ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      {number}
+                    </button>
+                  ))}
+                </div>
+                
+                <button
+                  onClick={nextPage}
+                  disabled={currentPage === totalPages}
+                  className={`p-1 rounded-md ${currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}`}
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            </div>
+      </div>
+
+      {/* Empty state - modify to check currentRows instead of filteredReservations */}
+      {!loading && currentRows.length === 0 && (
         <div className="p-8 text-center text-gray-500">
           No reservations found matching your criteria
         </div>
