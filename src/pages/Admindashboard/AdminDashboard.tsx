@@ -72,6 +72,26 @@ const AdminDashboard: React.FC = () => {
   };
 
   useEffect(() => {
+  const fetchMonthlyCheckins = async () => {
+    const from = `${reportYear}-${String(reportMonth).padStart(2, '0')}-01`;
+    const toMonth = reportMonth === 12 ? 1 : reportMonth + 1;
+    const toYear = reportMonth === 12 ? reportYear + 1 : reportYear;
+    const to = `${toYear}-${String(toMonth).padStart(2, '0')}-01`;
+    const { data, error } = await supabase
+      .from('checkins')
+      .select('*')
+      .gte('check_in_date', from)
+      .lt('check_in_date', to);
+    if (error) {
+      setMonthlyCheckins([]);
+    } else {
+      setMonthlyCheckins(data || []);
+    }
+  };
+  fetchMonthlyCheckins();
+}, [reportMonth, reportYear]);
+
+  useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data?.user?.email ?? null);
     });
@@ -92,50 +112,7 @@ const AdminDashboard: React.FC = () => {
     getRooms();
   }, []);
   // Modified to fetch only check-ins and check-outs
-  useEffect(() => {
-    const fetchMonthlyCheckins = async () => {
-      try {
-        const startDate = new Date(reportYear, reportMonth - 1, 1).toISOString();
-        const endDate = new Date(reportYear, reportMonth, 0).toISOString();
-
-        // Fetch check-ins
-        const { data: checkins, error: checkinsError } = await supabase
-          .from('reservations')
-          .select('*')
-          .gte('check_in_date', startDate)
-          .lte('check_in_date', endDate)
-          .order('check_in_date', { ascending: true });
-
-        if (checkinsError) {
-          console.error('Error fetching checkins:', checkinsError);
-          setMonthlyCheckins([]);
-        } else {
-          setMonthlyCheckins(checkins as Reservation[]);
-        }
-
-        // Fetch check-outs
-        const { data: checkouts, error: checkoutsError } = await supabase
-          .from('reservations')
-          .select('*')
-          .gte('check_out_date', startDate)
-          .lte('check_out_date', endDate)
-          .order('check_out_date', { ascending: true });
-
-        if (checkoutsError) {
-          console.error('Error fetching checkouts:', checkoutsError);
-          setMonthlyCheckouts([]);
-        } else {
-          setMonthlyCheckouts(checkouts as Reservation[]);
-        }
-      } catch (error) {
-        console.error('Error:', error);
-        setMonthlyCheckins([]);
-        setMonthlyCheckouts([]);
-      }
-    };
-    fetchMonthlyCheckins();
-  }, [reportMonth, reportYear]);
-
+ 
   return (
     <div className="min-h-screen bg-gray-50 pt-24 pb-12">
       <div className="container mx-auto px-4 md:px-6">
