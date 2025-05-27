@@ -1,5 +1,6 @@
 import React from 'react';
-import { Reservation } from './AdminDashboard';
+import type { Reservation } from '../../types'; // Adjust path as needed
+
 
 type Room = {
   id: number;
@@ -30,7 +31,6 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({
   reportYear,
   setReportYear,
   monthlyCheckins,
-  monthlyCheckouts,
   roomList,
   downloadCSV,
 }) => {
@@ -41,70 +41,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({
   return (
     <div className="p-4">
       {/* Embedded print styles */}
-      <style>{`
-        @media print {
-          @page {
-            size: A4;
-            margin: 1cm;
-          }
-          
-          body * {
-            visibility: hidden;
-          }
-          
-          .print-content, .print-content * {
-            visibility: visible;
-          }
-          
-          .print-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            padding: 0;
-          }
-          
-          .print-header {
-            display: block !important;
-            margin-bottom: 20px;
-            text-align: center;
-          }
-          
-          .print-footer {
-            display: block !important;
-            text-align: center;
-            font-size: 12px;
-            margin-top: 20px;
-            padding-top: 10px;
-            border-top: 1px solid #eee;
-          }
-          
-          .print-table {
-            width: 100%;
-            font-size: 12px;
-            border-collapse: collapse;
-          }
-          
-          .print-table th, .print-table td {
-            padding: 4px 6px;
-          }
-          
-          .print-table th {
-            background-color: #f3f4f6 !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          
-          tr {
-            page-break-inside: avoid;
-          }
-          
-          /* Hide all other elements */
-          nav, footer, .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
+    
 
       {/* Print-only header */}
       <div className="hidden print:block print-header print-content">
