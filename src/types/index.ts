@@ -10,7 +10,7 @@ export interface Room {
   available: boolean;
 }
 
-export type RoomType = 'standard' | 'deluxe' | 'suite' | 'presidential';
+export type RoomType = 'Standard' | 'Twin Bed' | 'Shega' | 'Shega Subroom'| 'Jacuzzi'| 'Room with Hal';
 
 export interface Reservation {
   [x: string]: any;
