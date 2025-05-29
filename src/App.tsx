@@ -23,7 +23,7 @@ const dummyRoom: Room = {
   price: 150,
   description: 'Spacious room with a sea view and a king-size bed.',
   images: ["image1.jpg", "image2.jpg"],
-  type: 'standard',
+  type: 'Standard',
   capacity: 0,
   amenities: [],
   available: false

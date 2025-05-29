@@ -8,6 +8,7 @@ import MonthlyReport from './MonthlyReport';
 // import RoomStatusDashboard from './RoomStatusDashboard';
 import type { Reservation } from '../../types';
 import RoomStatusDashboard from './RoomStatusBoard';
+import RoomStatusBoard from './RoomStatusBoard';
 
 emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
 
@@ -19,6 +20,7 @@ type Room = {
   capacity: number;
   available: boolean;
   quantity: number;
+  floor: number;
 };
 
 const AdminDashboard: React.FC = () => {
@@ -147,8 +149,9 @@ const AdminDashboard: React.FC = () => {
               />
             )}
             {activeTab === 'rooms' && <RoomTable roomList={roomList} reservations={reservations} checkIn={''} checkOut={''} />}
-            {activeTab === 'roomstatus' && <RoomStatusDashboard />}
-          </div>
+{activeTab === 'roomstatus' && (
+  <RoomStatusBoard roomList={roomList} reservations={reservations} />
+)}          </div>
         </div>
       </div>
     </div>
