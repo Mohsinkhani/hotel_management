@@ -284,7 +284,10 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
               <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
               <select name="room_id" required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                 <option value="">Select Room</option>
-                {roomList.filter(r => r.available).map(room => {
+               {[...roomList]
+               .filter(r => r.available)
+               .sort((a, b) => Number(a.id) - Number(b.id))
+               .map(room => {
                   const available = getAvailableRooms(room, reservations, walkInCheckIn, walkInCheckOut);
                   return (
                     <option

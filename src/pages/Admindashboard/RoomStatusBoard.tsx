@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { reservations } from '../../data/reservations';
 import { Reservation } from '../../types';
 
 type Room = {
