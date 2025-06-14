@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout';
 import { supabase } from '../supabaseClient';
+import InvoiceGenerator from '../components/InvoiceGenerator';
 import {
   Check,
   X,
@@ -8,6 +9,7 @@ import {
   LogOut,
   User,
   Pencil,
+  FileText,
 } from 'lucide-react';
 import emailjs from 'emailjs-com';
 
@@ -52,7 +54,8 @@ const AdminDashboard: React.FC = () => {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(''); // Add state for search term
-const [roomList, setRoomList] = useState<Room[]>([]);
+  const [roomList, setRoomList] = useState<Room[]>([]);
+  const [selectedReservationForInvoice, setSelectedReservationForInvoice] = useState<Reservation | null>(null);
 
   const getRooms = async () => {
     const { data, error } = await supabase.from('rooms').select('*');
@@ -77,7 +80,7 @@ const [roomList, setRoomList] = useState<Room[]>([]);
     };
 
     getReservations();
-      getRooms();
+    getRooms();
   }, []);
 
   // Filter reservations based on the search term
@@ -133,7 +136,7 @@ const [roomList, setRoomList] = useState<Room[]>([]);
     };
 
     emailjs
-      .send(  import.meta.env.VITE_EMAILJS_SERVICE_ID, // Use service ID from .env
+      .send(import.meta.env.VITE_EMAILJS_SERVICE_ID, // Use service ID from .env
         import.meta.env.VITE_EMAILJS_TEMPLATE_ID, 
          templateParams) // Replace template ID
       .then((response) => {
@@ -152,6 +155,10 @@ const [roomList, setRoomList] = useState<Room[]>([]);
     if (updatedReservation) sendEmail(updatedReservation, status);
 
     setReservations((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+  };
+
+  const handleGenerateInvoice = (reservation: Reservation) => {
+    setSelectedReservationForInvoice(reservation);
   };
 
   const badge = (status: string | null) => {
@@ -265,6 +272,15 @@ const [roomList, setRoomList] = useState<Room[]>([]);
                                   <button title="Cancel" onClick={() => updateStatus(r.id, 'cancelled')}>
                                     <X size={18} className="text-red-600" />
                                   </button>
+                                  {(r.status === 'checked-in' || r.status === 'checked-out') && (
+                                    <button 
+                                      title="Generate Invoice" 
+                                      onClick={() => handleGenerateInvoice(r)}
+                                      className="text-indigo-600 hover:text-indigo-800"
+                                    >
+                                      <FileText size={18} />
+                                    </button>
+                                  )}
                                   <button title="Edit">
                                     <Pencil size={18} className="text-gray-600" />
                                   </button>
@@ -304,6 +320,7 @@ const [roomList, setRoomList] = useState<Room[]>([]);
                             <th className="px-4 py-3">Email</th>
                             <th className="px-4 py-3">Phone</th>
                             <th className="px-4 py-3">Reservations</th>
+                            <th className="px-4 py-3">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -314,6 +331,17 @@ const [roomList, setRoomList] = useState<Room[]>([]);
                               <td className="px-4 py-3">{g.email}</td>
                               <td className="px-4 py-3">{g.phone}</td>
                               <td className="px-4 py-3">{g.reservations.length}</td>
+                              <td className="px-4 py-3">
+                                {g.reservations.length > 0 && (
+                                  <button 
+                                    title="Generate Invoice" 
+                                    onClick={() => handleGenerateInvoice(g.reservations[0])}
+                                    className="text-indigo-600 hover:text-indigo-800"
+                                  >
+                                    <FileText size={18} />
+                                  </button>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -379,6 +407,14 @@ const [roomList, setRoomList] = useState<Room[]>([]);
           </div>
         </div>
       </div>
+
+      {/* Invoice Generator Modal */}
+      {selectedReservationForInvoice && (
+        <InvoiceGenerator
+          reservationData={selectedReservationForInvoice}
+          onClose={() => setSelectedReservationForInvoice(null)}
+        />
+      )}
     </Layout>
   );
 };
