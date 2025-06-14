@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Download, Print, Calendar, User, Mail, Phone, MapPin, Building } from 'lucide-react';
+import { X, Download, Printer as Print, Calendar, User, Mail, Phone, MapPin, Building } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 type Reservation = {
