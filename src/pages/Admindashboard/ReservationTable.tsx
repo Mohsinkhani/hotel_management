@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Check, X, LogOut, User, Pencil, Trash2, Search, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Check, X, LogOut, User, Pencil, Trash2, Search, ChevronRight, ChevronLeft, FileText } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import InvoiceGenerator from '../../components/InvoiceGenerator';
 
 type Reservation = {
   id: string | number;
@@ -24,6 +25,7 @@ type Room = {
   price: number;
   available: boolean;
   quantity: number;
+  description?: string;
 };
 
 interface Props {
@@ -54,7 +56,9 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
   const [walkInCheckIn, setWalkInCheckIn] = useState('');
   const [walkInCheckOut, setWalkInCheckOut] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(15); // Default to 15 rows per page
+  const [rowsPerPage, setRowsPerPage] = useState(15);
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [showInvoiceGenerator, setShowInvoiceGenerator] = useState(false);
 
   useEffect(() => {
     const fetchReservations = async () => {
@@ -116,7 +120,6 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     setReservations((prev) => prev.filter((r) => String(r.id) !== id));
   };
 
-  // --- CHANGE: Update room status in Supabase when reservation status changes ---
   const updateStatus = async (id: string, status: string) => {
     const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
     if (error) {
@@ -165,7 +168,6 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
       }
     }
   };
-  // --- END CHANGE ---
 
   const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -199,6 +201,16 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
       setReservations((prev) => [data[0], ...prev]);
       setShowWalkInForm(false);
     }
+  };
+
+  const handleGenerateInvoice = (reservation: Reservation) => {
+    setSelectedReservation(reservation);
+    setShowInvoiceGenerator(true);
+  };
+
+  const getSelectedRoom = () => {
+    if (!selectedReservation) return undefined;
+    return roomList.find(room => String(room.id) === String(selectedReservation.room_id));
   };
 
   return (
@@ -361,7 +373,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                       <div className="text-sm text-gray-500">{room ? room.type : 'N/A'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{room ? `$${room.price}` : '-'}</div>
+                      <div className="text-sm font-medium text-gray-900">{room ? `${room.price} SAR` : '-'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
@@ -374,6 +386,13 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => handleGenerateInvoice(r)}
+                          className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
+                          title="Generate Invoice"
+                        >
+                          <FileText size={18} />
+                        </button>
                         {r.status !== 'confirmed' && (
                           <button
                             onClick={() => r.id != null && updateStatus(String(r.id), 'confirmed')}
@@ -499,6 +518,18 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
         <div className="p-8 text-center text-gray-500">
           No reservations found matching your criteria
         </div>
+      )}
+
+      {/* Invoice Generator Modal */}
+      {showInvoiceGenerator && selectedReservation && (
+        <InvoiceGenerator
+          reservation={selectedReservation}
+          room={getSelectedRoom()}
+          onClose={() => {
+            setShowInvoiceGenerator(false);
+            setSelectedReservation(null);
+          }}
+        />
       )}
     </div>
   );
