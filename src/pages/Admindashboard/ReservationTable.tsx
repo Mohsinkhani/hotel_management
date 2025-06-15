@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, X, LogOut, User, Pencil, Trash2, Search, ChevronRight, ChevronLeft } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import emailjs from 'emailjs-com';
 
 type Reservation = {
   id: string | number;
@@ -55,6 +56,56 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
   const [walkInCheckOut, setWalkInCheckOut] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(15); // Default to 15 rows per page
+
+function sendReservationEmail({
+  to_email,
+  to_name,
+  reservation_id,
+  status,
+  check_in,
+  check_out,
+}: {
+  to_email: string;
+  to_name: string;
+  reservation_id: string | number;
+  status: string;
+  check_in: string;
+  check_out: string;
+}) {
+  if (!to_email || !/\S+@\S+\.\S+/.test(to_email)) {
+    console.error('❌ Invalid email address:', to_email);
+    return;
+  }
+
+  const templateParams = {
+    email: to_email,               // ✅ for "To Email" and "Reply To"
+    name: to_name,                 // ✅ for "From Name"
+    user_name: to_name,            // ✅ for message body
+    reservation_id: String(reservation_id),
+    status,
+    check_in,
+    check_out,
+  };
+
+  console.log('📧 Sending email with:', templateParams);
+
+  emailjs.send(
+    'service_kh7wuol',
+    'template_6s8eg1n',
+    templateParams,
+    'pyYLR26bzKqt-HopY'
+  ).then(
+    (result) => {
+      console.log('✅ Email sent:', result.text);
+    },
+    (error) => {
+      console.error('❌ Failed to send email:', error.text, error);
+    }
+  );
+}
+
+
+
 
   useEffect(() => {
     const fetchReservations = async () => {
@@ -125,89 +176,111 @@ function getNights(checkIn: string, checkOut: string) {
   };
 
   // --- CHANGE: Update room status in Supabase when reservation status changes ---
-  const updateStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
-    if (error) {
-      alert('Failed to update status: ' + error.message);
-      return;
-    }
-    setReservations((prev) =>
-      prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
-    );
+ const updateStatus = async (id: string, status: string) => {
+  const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
+  if (error) {
+    alert('Failed to update status: ' + error.message);
+    return;
+  }
+  setReservations((prev) =>
+    prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
+  );
 
-    // Update room status in Supabase if status is checked-in or checked-out/cancelled
-    const reservation = reservations.find(r => String(r.id) === id);
+  // Update room status in Supabase if status is checked-in or checked-out/cancelled
+  const reservation = reservations.find(r => String(r.id) === id);
+  if (reservation) {
+    if (status === 'checked-in') {
+      await supabase.from('rooms').update({ status: 'occupied' }).eq('id', reservation.room_id);
+    }
+    if (status === 'checked-out' || status === 'cancelled') {
+      await supabase.from('rooms').update({ status: 'available' }).eq('id', reservation.room_id);
+    }
+
+    // Send email notification on status change
+    sendReservationEmail({
+      to_email: reservation.email,
+      to_name: `${reservation.first_name} ${reservation.last_name}`,
+      reservation_id: reservation.id,
+      status,
+      check_in: reservation.check_in_date,
+      check_out: reservation.check_out_date,
+    });
+  }
+
+  // Insert into checkins table if status is checked-in or confirmed
+  if (status === 'confirmed' || status === 'checked-in') {
     if (reservation) {
-      if (status === 'checked-in') {
-        await supabase.from('rooms').update({ status: 'occupied' }).eq('id', reservation.room_id);
-      }
-      if (status === 'checked-out' || status === 'cancelled') {
-        await supabase.from('rooms').update({ status: 'available' }).eq('id', reservation.room_id);
-      }
-    }
+      const { data: existingCheckin } = await supabase
+        .from('checkins')
+        .select('id')
+        .eq('reservation_id', reservation.id)
+        .maybeSingle();
 
-    // Insert into checkins table if status is checked-in or confirmed
-    if (status === 'confirmed' || status === 'checked-in') {
-      if (reservation) {
-        const { data: existingCheckin } = await supabase
-          .from('checkins')
-          .select('id')
-          .eq('reservation_id', reservation.id)
-          .maybeSingle();
-
-        if (!existingCheckin) {
-          const { error: checkinError } = await supabase.from('checkins').insert([{
-            reservation_id: reservation.id,
-            first_name: reservation.first_name,
-            last_name: reservation.last_name,
-            email: reservation.email,
-            phone: reservation.phone,
-            room_id: Number(reservation.room_id),
-            check_in_date: reservation.check_in_date,
-            check_out_date: reservation.check_out_date,
-          }]);
-          if (checkinError) {
-            alert('Failed to add to checkins: ' + checkinError.message);
-          }
+      if (!existingCheckin) {
+        const { error: checkinError } = await supabase.from('checkins').insert([{
+          reservation_id: reservation.id,
+          first_name: reservation.first_name,
+          last_name: reservation.last_name,
+          email: reservation.email,
+          phone: reservation.phone,
+          room_id: Number(reservation.room_id),
+          check_in_date: reservation.check_in_date,
+          check_out_date: reservation.check_out_date,
+        }]);
+        if (checkinError) {
+          alert('Failed to add to checkins: ' + checkinError.message);
         }
       }
     }
-  };
+  }
+};
   // --- END CHANGE ---
 
-  const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const newReservation = {
-      first_name: formData.get('first_name') as string,
-      last_name: formData.get('last_name') as string,
-      email: formData.get('email') as string,
-      phone: formData.get('phone') as string,
-      check_in_date: formData.get('check_in_date') as string,
-      check_out_date: formData.get('check_out_date') as string,
-      adults: Number(formData.get('adults')),
-      children: Number(formData.get('children')),
-      special_requests: formData.get('special_requests') as string,
-      room_id: formData.get('room_id') as string,
-      status: 'checked-in',
-    };
-    const selectedRoom = roomList.find(r => String(r.id) === newReservation.room_id);
-    const available = selectedRoom
-      ? getAvailableRooms(selectedRoom, reservations, newReservation.check_in_date, newReservation.check_out_date)
-      : 0;
-    if (available <= 0) {
-      alert('No space available for the selected room and dates.');
-      return;
-    }
-    const { error, data } = await supabase.from('reservations').insert([newReservation]).select();
-    if (error) {
-      alert('Failed to add walk-in guest: ' + error.message);
-    } else {
-      setReservations((prev) => [data[0], ...prev]);
-      setShowWalkInForm(false);
-    }
+ const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  const form = e.target as HTMLFormElement;
+  const formData = new FormData(form);
+  const newReservation = {
+    first_name: formData.get('first_name') as string,
+    last_name: formData.get('last_name') as string,
+    email: formData.get('email') as string,
+    phone: formData.get('phone') as string,
+    check_in_date: formData.get('check_in_date') as string,
+    check_out_date: formData.get('check_out_date') as string,
+    adults: Number(formData.get('adults')),
+    children: Number(formData.get('children')),
+    special_requests: formData.get('special_requests') as string,
+    room_id: formData.get('room_id') as string,
+    status: 'checked-in',
   };
+  const selectedRoom = roomList.find(r => String(r.id) === newReservation.room_id);
+  const available = selectedRoom
+    ? getAvailableRooms(selectedRoom, reservations, newReservation.check_in_date, newReservation.check_out_date)
+    : 0;
+  if (available <= 0) {
+    alert('No space available for the selected room and dates.');
+    return;
+  }
+  const { error, data } = await supabase.from('reservations').insert([newReservation]).select();
+  if (error) {
+    alert('Failed to add walk-in guest: ' + error.message);
+  } else {
+    setReservations((prev) => [data[0], ...prev]);
+    setShowWalkInForm(false);
+
+    // Send email notification on new reservation
+    if (data && data[0]) {
+      sendReservationEmail({
+        to_email: data[0].email,
+        to_name: `${data[0].first_name} ${data[0].last_name}`,
+        reservation_id: data[0].id,
+        status: data[0].status,
+        check_in: data[0].check_in_date,
+        check_out: data[0].check_out_date,
+      });
+    }
+  }
+};
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
