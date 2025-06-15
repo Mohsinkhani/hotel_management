@@ -1,380 +1,1989 @@
 import React, { useState, useRef } from 'react';
-import { 
-  Download, 
-  Printer, 
-  Mail, 
-  Calendar, 
-  User, 
-  Phone, 
-  MapPin, 
-  CreditCard,
-  FileText,
-  Building
-} from 'lucide-react';
+import { X, Download, Printer as Print } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
-interface InvoiceData {
-  reservationId: string;
-  guestName: string;
-  email: string;
-  phone: string;
-  roomName: string;
-  roomType: string;
-  checkInDate: string;
-  checkOutDate: string;
-  nights: number;
-  adults: number;
-  children: number;
-  roomRate: number;
-  subtotal: number;
-  taxes: number;
-  total: number;
-  paymentMethod: string;
-  bookingSource: string;
-  specialRequests?: string;
-}
+type Reservation = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  room_id: string | null;
+  adults: number | null;
+  children: number | null;
+  special_requests: string | null;
+  status: string | null;
+};
+
+type Room = {
+  id: number;
+  name: string;
+  type: string;
+  price: number;
+  description: string;
+};
+
+type InvoiceItem = {
+  description: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+};
 
 interface InvoiceGeneratorProps {
-  reservationData: any;
+  reservation: Reservation;
+  room?: Room;
   onClose: () => void;
 }
 
-const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, onClose }) => {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservation, room, onClose }) => {
+  const [additionalItems, setAdditionalItems] = useState<InvoiceItem[]>([]);
+  const [newItem, setNewItem] = useState({ description: '', quantity: 1, rate: 0 });
+  const [taxRate, setTaxRate] = useState(15); // 15% VAT for Saudi Arabia
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [notes, setNotes] = useState('');
   const invoiceRef = useRef<HTMLDivElement>(null);
 
-  // Calculate invoice data
-  const calculateInvoiceData = (): InvoiceData => {
-    const checkIn = new Date(reservationData.check_in_date);
-    const checkOut = new Date(reservationData.check_out_date);
-    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-    
-    // Mock room rate - in real app, fetch from rooms table
-    const roomRate = 150; // This should come from the room data
-    const subtotal = roomRate * nights;
-    const taxRate = 0.15; // 15% tax
-    const taxes = subtotal * taxRate;
-    const total = subtotal + taxes;
-
-    return {
-      reservationId: reservationData.id,
-      guestName: `${reservationData.first_name} ${reservationData.last_name}`,
-      email: reservationData.email,
-      phone: reservationData.phone,
-      roomName: `Room ${reservationData.room_id}`, // In real app, get room name from rooms table
-      roomType: 'Deluxe Suite', // This should come from room data
-      checkInDate: reservationData.check_in_date,
-      checkOutDate: reservationData.check_out_date,
-      nights,
-      adults: reservationData.adults || 1,
-      children: reservationData.children || 0,
-      roomRate,
-      subtotal,
-      taxes,
-      total,
-      paymentMethod: 'Pay at Hotel',
-      bookingSource: 'Direct Booking',
-      specialRequests: reservationData.special_requests
-    };
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
   };
 
-  const invoiceData = calculateInvoiceData();
-  const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
-  const invoiceDate = new Date().toLocaleDateString();
+  const calculateNights = () => {
+    if (!reservation.check_in_date || !reservation.check_out_date) return 1;
+    const inDate = new Date(reservation.check_in_date);
+    const outDate = new Date(reservation.check_out_date);
+    const nights = Math.ceil((outDate.getTime() - inDate.getTime()) / (1000 * 3600 * 24));
+    return Math.max(1, nights);
+  };
+
+  const nights = calculateNights();
+  const roomTotal = room ? room.price * nights : 0;
+  const additionalTotal = additionalItems.reduce((sum, item) => sum + item.amount, 0);
+  const subtotal = roomTotal + additionalTotal - discountAmount;
+  const taxAmount = (subtotal * taxRate) / 100;
+  const total = subtotal + taxAmount;
+
+  const addItem = () => {
+    if (newItem.description.trim()) {
+      const amount = newItem.quantity * newItem.rate;
+      setAdditionalItems([...additionalItems, { ...newItem, amount }]);
+      setNewItem({ description: '', quantity: 1, rate: 0 });
+    }
+  };
+
+  const removeItem = (index: number) => {
+    setAdditionalItems(additionalItems.filter((_, i) => i !== index));
+  };
 
   const handlePrint = () => {
     window.print();
   };
 
   const handleDownload = () => {
-    setIsGenerating(true);
-    
-    // Create a new window for the invoice
     const printWindow = window.open('', '_blank');
-    if (printWindow && invoiceRef.current) {
-      const invoiceHTML = invoiceRef.current.innerHTML;
-      
+    if (printWindow) {
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
-          <head>
-            <title>Invoice ${invoiceNumber}</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-              .invoice-container { max-width: 800px; margin: 0 auto; }
-              .no-print { display: none !important; }
-              @media print {
-                body { margin: 0; }
-                .no-print { display: none !important; }
+        <head>
+          <title>Invoice - ${reservation.id.slice(0, 8).toUpperCase()}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
+            body { 
+              font-family: 'Amiri', serif; 
+              margin: 0; 
+              padding: 0; 
+              direction: rtl;
+            }
+            .invoice-container { 
+              width: 100%; 
+              margin: 0 auto; 
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            th, td {
+              padding: 2px;
+              text-align: right;
+            }
+            .text-center {
+              text-align: center;
+            }
+            .text-left {
+              text-align: left;
+            }
+            .text-right {
+              text-align: right;
+            }
+            .border-bottom {
+              border-bottom: 1px solid #000;
+            }
+            .border-top {
+              border-top: 1px solid #000;
+            }
+            .no-print {
+              display: none;
+            }
+            @media print {
+              .no-print {
+                display: none;
               }
-            </style>
-          </head>
-          <body>
-            <div class="invoice-container">
-              ${invoiceHTML}
-            </div>
-          </body>
+            }
+          </style>
+        </head>
+        <body>
+          ${invoiceRef.current?.innerHTML}
+        </body>
         </html>
       `);
-      
       printWindow.document.close();
-      printWindow.focus();
-      
-      setTimeout(() => {
-        printWindow.print();
-        setIsGenerating(false);
-      }, 500);
+      printWindow.print();
     }
   };
 
-  const handleEmailInvoice = async () => {
-    setIsGenerating(true);
-    
-    // Simulate email sending
-    setTimeout(() => {
-      setEmailSent(true);
-      setIsGenerating(false);
-      setTimeout(() => setEmailSent(false), 3000);
-    }, 2000);
+  const saveInvoice = async () => {
+    try {
+      const invoiceData = {
+        reservation_id: reservation.id,
+        room_total: roomTotal,
+        additional_items: additionalItems,
+        discount_amount: discountAmount,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        total_amount: total,
+        notes: notes,
+        created_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from('invoices').insert([invoiceData]);
+      if (error) throw error;
+      
+      alert('Invoice saved successfully!');
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      alert('Failed to save invoice. Please try again.');
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Action Buttons */}
-        <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center no-print">
-          <h2 className="text-xl font-bold text-gray-800">Invoice Generator</h2>
-          <div className="flex space-x-2">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[95vh] overflow-y-auto">
+        {/* Header Controls */}
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 no-print">
+          <h2 className="text-2xl font-bold text-gray-800">Invoice Generator</h2>
+          <div className="flex gap-3">
             <button
-              onClick={handleEmailInvoice}
-              disabled={isGenerating}
-              className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              onClick={saveInvoice}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
-              <Mail size={16} className="mr-1" />
-              {isGenerating ? 'Sending...' : 'Email'}
+              <Download size={18} />
+              Save
             </button>
             <button
               onClick={handleDownload}
-              disabled={isGenerating}
-              className="flex items-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <Download size={16} className="mr-1" />
+              <Download size={18} />
               Download
             </button>
             <button
               onClick={handlePrint}
-              className="flex items-center px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >
-              <Printer size={16} className="mr-1" />
+              <Print size={18} />
               Print
             </button>
             <button
               onClick={onClose}
-              className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+              className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
             >
-              Close
+              <X size={20} />
             </button>
           </div>
         </div>
 
-        {/* Success Message */}
-        {emailSent && (
-          <div className="mx-4 mt-4 p-3 bg-green-100 text-green-800 rounded-lg no-print">
-            Invoice has been sent to {invoiceData.email} successfully!
-          </div>
-        )}
-
         {/* Invoice Content */}
-        <div ref={invoiceRef} className="p-8">
-          {/* Header */}
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-blue-900 mb-2">Lerelax Hotel</h1>
-              <div className="text-gray-600 space-y-1">
-                <div className="flex items-center">
-                  <MapPin size={16} className="mr-2" />
-                  <span>7328 King Abdulaziz Rd, 4656, Almatar, Buqayq 33261</span>
-                </div>
-                <div className="flex items-center">
-                  <Phone size={16} className="mr-2" />
-                  <span>+966 560000517</span>
-                </div>
-                <div className="flex items-center">
-                  <Mail size={16} className="mr-2" />
-                  <span>info@lerelax.online</span>
-                </div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="bg-blue-900 text-white px-4 py-2 rounded-lg mb-4">
-                <h2 className="text-xl font-bold">INVOICE</h2>
-              </div>
-              <div className="text-gray-600 space-y-1">
-                <div><strong>Invoice #:</strong> {invoiceNumber}</div>
-                <div><strong>Date:</strong> {invoiceDate}</div>
-                <div><strong>Status:</strong> <span className="text-green-600 font-semibold">Paid</span></div>
-              </div>
-            </div>
-          </div>
+        <div ref={invoiceRef} className="invoice-container" style={{ fontFamily: 'Amiri, serif', direction: 'rtl' }}>
+          <table>
+            <colgroup>
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '4%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '4%' }} />
+              <col style={{ width: '3%' }} />
+              <col style={{ width: '2%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '3%' }} />
+              <col style={{ width: '3%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '2%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '2%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '1%' }} />
+              <col style={{ width: '3%' }} />
+              <col style={{ width: '2%' }} />
+              <col style={{ width: '0%' }} />
+              <col style={{ width: '0%' }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th colSpan={42}>
+                  <table style={{ width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '34%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '34%' }} />
+                      <col style={{ width: '0%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th colSpan={2} rowSpan={2}><strong>فندق ياسر الضلعي لي ريلاكس</strong></th>
+                        <th style={{ textAlign: 'center' }}></th>
+                        <th colSpan={2} rowSpan={2} style={{ textAlign: 'right' }}><strong>فندق ياسر الضلعي لي ريلاكس</strong></th>
+                        <th></th>
+                      </tr>
+                      <tr>
+                        <th rowSpan={3} style={{ textAlign: 'center' }}>{/* Image would go here */}</th>
+                        <th></th>
+                      </tr>
+                      <tr>
+                        <th colSpan={2}>
+                          <p>Buqayq - Al Mattar</p>
+                          <p>المملكة العربية السعودية - محافظة بقيق</p>
+                        </th>
+                        <th colSpan={2} style={{ textAlign: 'right' }}>
+                          <p>بقيق - المطار</p>
+                          <p>المملكة العربية السعودية - محافظة بقيق</p>
+                        </th>
+                        <th></th>
+                      </tr>
+                      <tr>
+                        <th></th>
+                        <th style={{ textAlign: 'center' }}></th>
+                        <th style={{ textAlign: 'center' }}></th>
+                        <th></th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td></td>
+                        <td colSpan={3} style={{ textAlign: 'center' }}><strong>+966 560000517</strong></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                      <tr>
+                        <td colSpan={5}>
+                          <table>
+                            <colgroup>
+                              <col style={{ width: '15%' }} />
+                              <col style={{ width: '17%' }} />
+                              <col style={{ width: '15%' }} />
+                              <col style={{ width: '17%' }} />
+                              <col style={{ width: '16%' }} />
+                              <col style={{ width: '17%' }} />
+                            </colgroup>
+                            <thead>
+                              <tr>
+                                <th>C.R:</th>
+                                <th style={{ textAlign: 'center' }}>2059002936</th>
+                                <th style={{ textAlign: 'right' }}>:السجل التجاري</th>
+                                <th>VAT No:</th>
+                                <th style={{ textAlign: 'center' }}>300929806300003</th>
+                                <th style={{ textAlign: 'right' }}>:الرقم الضريبي</th>
+                              </tr>
+                            </thead>
+                            <tbody></tbody>
+                          </table>
+                        </td>
+                        <td></td>
+                      </tr>
+                      <tr>
+                        <td></td>
+                        <td style={{ textAlign: 'center' }}></td>
+                        <td style={{ textAlign: 'center' }}></td>
+                        <td style={{ textAlign: 'center' }}></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={13} rowSpan={2}>Simplified TAX Invoice</td>
+                <td></td>
+                <td colSpan={17} rowSpan={3} style={{ textAlign: 'right' }}>فاتورة ضريبية مبسطة</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td colSpan={4} rowSpan={19}>{/* Image would go here */}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={6} rowSpan={2}>Invoice No.:</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>{reservation.id.slice(0, 8).toUpperCase()}</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={7} rowSpan={2} style={{ textAlign: 'right' }}>:رقم الفاتورة</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td colSpan={10} rowSpan={2}>Res No./(Res Source No.):</td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>{reservation.id.slice(0, 8).toUpperCase()}</td>
+                <td colSpan={14} rowSpan={2} style={{ textAlign: 'right' }}>:رقم الحجز/ (رقم مصدر الحجز)</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={14} rowSpan={3} style={{ textAlign: 'center' }}>
+                  {reservation.check_in_date ? formatDate(reservation.check_in_date) : '-'} - {reservation.check_out_date ? formatDate(reservation.check_out_date) : '-'}
+                </td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={6}>Rental Period:</td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={7} style={{ textAlign: 'right' }}>:فترة الحجز</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={32}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={8} rowSpan={3} style={{ textAlign: 'left' }}>Created on:</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={13} rowSpan={3} style={{ textAlign: 'right' }}>:أنشىء في</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>{formatDate(new Date().toISOString())}</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={2} style={{ textAlign: 'left' }}>Invoice date:</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>{formatDate(new Date().toISOString())}</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={13} rowSpan={2} style={{ textAlign: 'right' }}>:تاريخ الفاتورة</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={4} style={{ textAlign: 'left' }}>Unit No:</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={7} rowSpan={4} style={{ textAlign: 'right' }}>:رقم الوحدة</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>{room?.id || '-'}</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={3} style={{ textAlign: 'left' }}>Unit Type:</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={7} rowSpan={3} style={{ textAlign: 'right' }}>:نوع الوحدة</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>{room?.type || '-'}</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={2} style={{ textAlign: 'left' }}>Block:</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>1</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={7} rowSpan={2} style={{ textAlign: 'right' }}>:المبنى</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={6}><u>Buyer:</u></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={15} style={{ textAlign: 'right' }}><u>المشتري</u></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={4} rowSpan={2}>Street</td>
+                <td colSpan={5} rowSpan={2} style={{ textAlign: 'center' }}>---</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={2} style={{ textAlign: 'right' }}>الشارع</td>
+                <td></td>
+                <td colSpan={4} rowSpan={2}>Guest Name</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={10} rowSpan={2} style={{ textAlign: 'center' }}>{reservation.first_name} {reservation.last_name}</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={8} rowSpan={2} style={{ textAlign: 'right' }}>:اسم العميل</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={4} rowSpan={2}>District:</td>
+                <td colSpan={5} rowSpan={2} style={{ textAlign: 'center' }}>---</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={2} style={{ textAlign: 'right' }}>الحي</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={2}>Mobile No:</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={10} rowSpan={2} style={{ textAlign: 'center' }}>{reservation.phone}</td>
+                <td colSpan={8} rowSpan={2} style={{ textAlign: 'right' }}>:رقم الجوال</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={4} rowSpan={2}>Postal Code:</td>
+                <td colSpan={5} rowSpan={2} style={{ textAlign: 'center' }}>---</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={2} style={{ textAlign: 'right' }}>:الرمز البريدي</td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={2}>Corporate</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={10} rowSpan={2} style={{ textAlign: 'center' }}>---</td>
+                <td colSpan={8} rowSpan={2} style={{ textAlign: 'right' }}>:الشركة</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={4} rowSpan={2}>Build / (add) No.</td>
+                <td colSpan={5} rowSpan={2} style={{ textAlign: 'center' }}>---</td>
+                <td colSpan={8} rowSpan={2} style={{ textAlign: 'right' }}>رقم المبنى/ (الإضافي)</td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td colSpan={4} rowSpan={2}>Country</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={10} rowSpan={2} style={{ textAlign: 'center' }}>---</td>
+                <td colSpan={8} rowSpan={2} style={{ textAlign: 'right' }}>:الدولة</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={4} rowSpan={2}>VAT No:</td>
+                <td colSpan={5} rowSpan={2} style={{ textAlign: 'center' }}>---</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={2} style={{ textAlign: 'right' }}>:الرقم الضريبي</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4} rowSpan={2}>City</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={10} rowSpan={2} style={{ textAlign: 'center' }}>---</td>
+                <td colSpan={8} rowSpan={2} style={{ textAlign: 'right' }}>:المدينة</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={41}></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={8}><u>Additional Seller's Information</u></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={14} style={{ textAlign: 'right' }}><u>معلومات البائع الإضافية</u></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={4}>Street</td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>الملك عبدالعزيز</td>
+                <td></td>
+                <td colSpan={4} style={{ textAlign: 'right' }}>الشارع</td>
+                <td></td>
+                <td colSpan={4}>Country</td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>السعودية</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={9} style={{ textAlign: 'right' }}>:الدولة</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={4}>Building No.:</td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>7328</td>
+                <td></td>
+                <td colSpan={4} style={{ textAlign: 'right' }}>:رقم المبنى</td>
+                <td></td>
+                <td colSpan={4}>City</td>
+                <td colSpan={9} style={{ textAlign: 'center' }}>بقيق</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={9} style={{ textAlign: 'right' }}>:المدينة</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={4}>Additional No:</td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>4656</td>
+                <td colSpan={5} style={{ textAlign: 'right' }}>:الرقم الإضافي</td>
+                <td></td>
+                <td></td>
+                <td colSpan={3}>District:</td>
+                <td colSpan={8} style={{ textAlign: 'center' }}>المطار</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={9} style={{ textAlign: 'right' }}>:الحي</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td colSpan={39}>
+                  <table style={{ width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '11%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '9%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '5%' }} />
+                      <col style={{ width: '24%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'center' }}><p>Grand Total</p><p>الإجمالي الكلي</p></th>
+                        <th style={{ textAlign: 'center' }}><p>Tax Amount</p><p>مبلغ الضريبة</p></th>
+                        <th style={{ textAlign: 'center' }}><p>Tax Rate %</p><p>% نسبة الضريبة</p></th>
+                        <th style={{ textAlign: 'center' }}><p>Total</p><p>الإجمالي</p></th>
+                        <th style={{ textAlign: 'center' }}><p>Discount</p><p>الخصم</p></th>
+                        <th style={{ textAlign: 'center' }}><p>Sub Total</p><p>الإجمالي الفرعي</p></th>
+                        <th style={{ textAlign: 'center' }}><p>Price</p><p>السعر</p></th>
+                        <th style={{ textAlign: 'center' }}><p>QTY</p><p>الكمية</p></th>
+                        <th style={{ textAlign: 'center' }}><p>Description</p><p>الوصف</p></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ textAlign: 'center' }}>{total.toFixed(2)}</td>
+                        <td style={{ textAlign: 'center' }}>{taxAmount.toFixed(2)}</td>
+                        <td style={{ textAlign: 'center' }}>{taxRate}%</td>
+                        <td style={{ textAlign: 'center' }}>{subtotal.toFixed(2)}</td>
+                        <td style={{ textAlign: 'center' }}>{discountAmount.toFixed(2)}</td>
+                        <td style={{ textAlign: 'center' }}>{(roomTotal + additionalTotal).toFixed(2)}</td>
+                        <td style={{ textAlign: 'center' }}>{room?.price.toFixed(2)}</td>
+                        <td style={{ textAlign: 'center' }}>{nights}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <p>إيجار الوحدة</p>
+                          <p>{reservation.check_in_date ? formatDate(reservation.check_in_date) : '-'} - {reservation.check_out_date ? formatDate(reservation.check_out_date) : '-'}</p>
+                        </td>
+                      </tr>
+                      {additionalItems.map((item, index) => (
+                        <tr key={index}>
+                          <td style={{ textAlign: 'center' }}>{item.amount.toFixed(2)}</td>
+                          <td style={{ textAlign: 'center' }}>{(item.amount * taxRate / 100).toFixed(2)}</td>
+                          <td style={{ textAlign: 'center' }}>{taxRate}%</td>
+                          <td style={{ textAlign: 'center' }}>{item.amount.toFixed(2)}</td>
+                          <td style={{ textAlign: 'center' }}>0</td>
+                          <td style={{ textAlign: 'center' }}>{item.amount.toFixed(2)}</td>
+                          <td style={{ textAlign: 'center' }}>{item.rate.toFixed(2)}</td>
+                          <td style={{ textAlign: 'center' }}>{item.quantity}</td>
+                          <td style={{ textAlign: 'center' }}>{item.description}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={4}>Totals</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={13} style={{ textAlign: 'right' }}>المبالغ الإجمالية</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={7}>Total not subject to VAT</td>
+                <td colSpan={14} style={{ textAlign: 'center' }}>0</td>
+                <td colSpan={13} style={{ textAlign: 'right' }}>المبالغ الغير خاضعة للضريبة</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={7}>Total subject to VAT</td>
+                <td colSpan={14} style={{ textAlign: 'center' }}>{subtotal.toFixed(2)}</td>
+                <td colSpan={13} style={{ textAlign: 'right' }}>المبالغ الخاضعة للضريبة</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={7}>VAT (15%)</td>
+                <td colSpan={14} style={{ textAlign: 'center' }}>{taxAmount.toFixed(2)}</td>
+                <td colSpan={13} style={{ textAlign: 'right' }}>(15%) ضريبة القيمة المضافة</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={7}>
+                  <p><strong><u>Grand Total</u></strong></p>
+                  <p><strong><u>Included VAT (15%)</u></strong></p>
+                </td>
+                <td colSpan={14} style={{ textAlign: 'center' }}>SAR {total.toFixed(2)}</td>
+                <td colSpan={13} style={{ textAlign: 'right' }}>
+                  <p><strong><u>الإجمالي الكلي</u></strong></p>
+                  <p><strong><u>(15%) شامل ضريبة القيمة المضافة</u></strong></p>
+                </td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={2}>Notes</td>
+                <td></td>
+                <td colSpan={31} style={{ textAlign: 'center' }}>{notes}</td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td colSpan={6} style={{ textAlign: 'right' }}>ملاحظات</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td colSpan={31}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colSpan={42}>
+                  <table style={{ width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '1%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '35%' }} />
+                      <col style={{ width: '24%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '19%' }} />
+                      <col style={{ width: '0%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th>Printed By:</th>
+                        <th>ياسر علي الضلعي</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td colSpan={42}>
+                  <table style={{ width: '100%' }}>
+                    <colgroup>
+                      <col style={{ width: '0%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '34%' }} />
+                      <col style={{ width: '29%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '7%' }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td></td>
+                        <td style={{ textAlign: 'center' }}><strong>Email:</strong></td>
+                        <td><strong>saudips@saudips.com</strong></td>
+                        <td></td>
+                        <td style={{ textAlign: 'center' }}><strong>Postal Code:</strong></td>
+                        <td><strong>31992</strong></td>
+                        <td></td>
+                      </tr>
+                      <tr>
+                        <td></td>
+                        <td style={{ textAlign: 'center' }}></td>
+                        <td></td>
+                        <td></td>
+                        <td style={{ textAlign: 'center' }}></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td style={{ textAlign: 'right' }}></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
 
-          {/* Guest Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                <User size={18} className="mr-2" />
-                Guest Information
-              </h3>
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                <div><strong>Name:</strong> {invoiceData.guestName}</div>
-                <div><strong>Email:</strong> {invoiceData.email}</div>
-                <div><strong>Phone:</strong> {invoiceData.phone}</div>
-                <div><strong>Reservation ID:</strong> {invoiceData.reservationId.slice(0, 8)}</div>
-              </div>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                <Building size={18} className="mr-2" />
-                Booking Details
-              </h3>
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                <div><strong>Room:</strong> {invoiceData.roomName}</div>
-                <div><strong>Room Type:</strong> {invoiceData.roomType}</div>
-                <div><strong>Guests:</strong> {invoiceData.adults} Adults, {invoiceData.children} Children</div>
-                <div><strong>Booking Source:</strong> {invoiceData.bookingSource}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Stay Information */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-              <Calendar size={18} className="mr-2" />
-              Stay Information
-            </h3>
+          {/* Additional Items Form (Print Hidden) */}
+          <div className="no-print p-6">
+            <h3 className="text-lg font-semibold mb-4">Add Additional Items</h3>
             <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <input
+                  type="text"
+                  placeholder="Description"
+                  value={newItem.description}
+                  onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <input
+                  type="number"
+                  placeholder="Quantity"
+                  min="1"
+                  value={newItem.quantity}
+                  onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <input
+                  type="number"
+                  placeholder="Rate (SAR)"
+                  min="0"
+                  step="0.01"
+                  value={newItem.rate}
+                  onChange={(e) => setNewItem({ ...newItem, rate: Number(e.target.value) })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <button
+                  onClick={addItem}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Add Item
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <strong>Check-in:</strong>
-                  <div className="text-blue-600 font-semibold">
-                    {new Date(invoiceData.checkInDate).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
                 </div>
                 <div>
-                  <strong>Check-out:</strong>
-                  <div className="text-blue-600 font-semibold">
-                    {new Date(invoiceData.checkOutDate).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <strong>Duration:</strong>
-                  <div className="text-blue-600 font-semibold">
-                    {invoiceData.nights} {invoiceData.nights === 1 ? 'Night' : 'Nights'}
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount (SAR)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={discountAmount}
+                    onChange={(e) => setDiscountAmount(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Special Requests */}
-          {invoiceData.specialRequests && (
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                <FileText size={18} className="mr-2" />
-                Special Requests
-              </h3>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-gray-700">{invoiceData.specialRequests}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Invoice Items */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Invoice Details</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-gray-300">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 px-4 py-3 text-left">Description</th>
-                    <th className="border border-gray-300 px-4 py-3 text-center">Nights</th>
-                    <th className="border border-gray-300 px-4 py-3 text-right">Rate/Night</th>
-                    <th className="border border-gray-300 px-4 py-3 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="border border-gray-300 px-4 py-3">
-                      <div className="font-semibold">{invoiceData.roomName}</div>
-                      <div className="text-sm text-gray-600">{invoiceData.roomType}</div>
-                    </td>
-                    <td className="border border-gray-300 px-4 py-3 text-center">{invoiceData.nights}</td>
-                    <td className="border border-gray-300 px-4 py-3 text-right">${invoiceData.roomRate.toFixed(2)}</td>
-                    <td className="border border-gray-300 px-4 py-3 text-right">${invoiceData.subtotal.toFixed(2)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Totals */}
-          <div className="flex justify-end mb-8">
-            <div className="w-full max-w-sm">
-              <div className="space-y-2">
-                <div className="flex justify-between py-2">
-                  <span>Subtotal:</span>
-                  <span>${invoiceData.subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span>Taxes (15%):</span>
-                  <span>${invoiceData.taxes.toFixed(2)}</span>
-                </div>
-                <div className="border-t border-gray-300 pt-2">
-                  <div className="flex justify-between py-2 text-lg font-bold">
-                    <span>Total Amount:</span>
-                    <span className="text-blue-900">${invoiceData.total.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Information */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-              <CreditCard size={18} className="mr-2" />
-              Payment Information
-            </h3>
-            <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-green-800">Payment Method: {invoiceData.paymentMethod}</div>
-                  <div className="text-green-600">Status: Paid in Full</div>
-                </div>
-                <div className="text-2xl font-bold text-green-600">
-                  ${invoiceData.total.toFixed(2)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="border-t border-gray-300 pt-6 text-center text-gray-600">
-            <p className="mb-2">Thank you for choosing Lerelax Hotel!</p>
-            <p className="text-sm">
-              We hope you enjoyed your stay. Please don't hesitate to contact us if you have any questions.
-            </p>
-            <div className="mt-4 text-xs">
-              <p>This is a computer-generated invoice. No signature required.</p>
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add any additional notes or terms..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                rows={4}
+              />
             </div>
           </div>
         </div>
