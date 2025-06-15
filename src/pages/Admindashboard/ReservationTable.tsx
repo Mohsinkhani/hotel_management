@@ -75,6 +75,14 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     fetchReservations();
   }, [onReservationsChange]);
 
+function getNights(checkIn: string, checkOut: string) {
+  const inDate = new Date(checkIn);
+  const outDate = new Date(checkOut);
+  const diffTime = outDate.getTime() - inDate.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : 1;
+}
+
   function getAvailableRooms(room: Room, reservations: Reservation[], checkIn: string, checkOut: string) {
     const reservedCount = reservations.filter(r =>
       String(r.room_id) === String(room.id) &&
@@ -363,9 +371,16 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                       <div className="text-sm text-gray-900">{room ? room.name : r.room_id}</div>
                       <div className="text-sm text-gray-500">{room ? room.type : 'N/A'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{room ? `$${room.price}` : '-'}</div>
-                    </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                      {room
+                      ? `$${room.price * getNights(r.check_in_date, r.check_out_date)}`
+                      : '-'}
+                      <span className="text-xs text-gray-500 ml-1">
+                       {room ? `(${getNights(r.check_in_date, r.check_out_date)} night${getNights(r.check_in_date, r.check_out_date) > 1 ? 's' : ''})` : ''}
+                       </span>
+                         </div>
+                       </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
                         <div className="font-medium">{r.check_in_date}</div>
