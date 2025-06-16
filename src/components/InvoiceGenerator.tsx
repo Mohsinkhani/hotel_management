@@ -43,35 +43,61 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
   const [taxRate, setTaxRate] = useState(15);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRoomData = async () => {
-      if (reservationData.room_id) {
-        const { data, error } = await supabase
+      try {
+        if (!reservationData.room_id) {
+          throw new Error('No room ID provided in reservation data');
+        }
+
+        const { data, error: supabaseError } = await supabase
           .from('rooms')
           .select('*')
           .eq('id', reservationData.room_id)
           .single();
 
-        if (!error && data) {
-          setRoom(data);
+        if (supabaseError) {
+          throw supabaseError;
         }
+
+        if (!data) {
+          throw new Error('Room not found');
+        }
+
+        setRoom(data);
+      } catch (err) {
+        console.error('Error fetching room data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load room data');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchRoomData();
   }, [reservationData.room_id]);
 
-  const calculateNights = () => {
-    if (!reservationData.check_in_date || !reservationData.check_out_date) return 0;
-    const checkIn = new Date(reservationData.check_in_date);
-    const checkOut = new Date(reservationData.check_out_date);
-    const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const calculateNights = (): number => {
+    try {
+      if (!reservationData.check_in_date || !reservationData.check_out_date) return 0;
+      
+      const checkIn = new Date(reservationData.check_in_date);
+      const checkOut = new Date(reservationData.check_out_date);
+      
+      if (isNaN(checkIn.getTime())) throw new Error('Invalid check-in date');
+      if (isNaN(checkOut.getTime())) throw new Error('Invalid check-out date');
+      
+      const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    } catch (err) {
+      console.error('Error calculating nights:', err);
+      return 0;
+    }
   };
 
-  const roomTotal = room ? room.price * calculateNights() : 0;
+  const nights = calculateNights();
+  const roomTotal = room ? room.price * nights : 0;
   const additionalTotal = additionalItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const subtotal = roomTotal + additionalTotal;
   const discountedAmount = subtotal - discountAmount;
@@ -91,6 +117,10 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
 
   const saveInvoice = async () => {
     try {
+      if (!reservationData.id) {
+        throw new Error('Reservation ID is missing');
+      }
+
       const invoiceData = {
         reservation_id: reservationData.id,
         room_total: roomTotal,
@@ -102,17 +132,16 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
         notes: notes
       };
 
-      const { error } = await supabase.from('invoices').insert([invoiceData]);
+      const { error: supabaseError } = await supabase.from('invoices').insert([invoiceData]);
       
-      if (error) {
-        console.error('Error saving invoice:', error);
-        alert('Error saving invoice');
-      } else {
-        alert('Invoice saved successfully!');
+      if (supabaseError) {
+        throw supabaseError;
       }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Error saving invoice');
+
+      alert('Invoice saved successfully!');
+    } catch (err) {
+      console.error('Error saving invoice:', err);
+      setError(err instanceof Error ? err.message : 'Error saving invoice');
     }
   };
 
@@ -120,24 +149,34 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
     window.print();
   };
 
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString: string | null): string => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid date';
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return 'Invalid date';
+    }
   };
 
-  const formatDateArabic = (dateString: string | null) => {
+  const formatDateArabic = (dateString: string | null): string => {
     if (!dateString) return 'غير متوفر';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ar-SA', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'تاريخ غير صالح';
+      return date.toLocaleDateString('ar-SA', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return 'تاريخ غير صالح';
+    }
   };
 
   if (loading) {
@@ -146,6 +185,23 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
         <div className="bg-white p-8 rounded-lg">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-center">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-8 rounded-lg max-w-md">
+          <h2 className="text-xl font-bold text-red-600 mb-4">Error</h2>
+          <p className="mb-4">{error}</p>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+          >
+            Close
+          </button>
         </div>
       </div>
     );
@@ -199,8 +255,8 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
           <div className="text-center mb-8">
             <div className="inline-block bg-gradient-to-r from-blue-600 to-blue-800 text-white px-8 py-4 rounded-lg shadow-lg">
               <h3 className="text-2xl font-bold">INVOICE / فاتورة</h3>
-              <p className="text-blue-100">Invoice No: INV-{reservationData.id.slice(0, 8)}</p>
-              <p className="text-blue-100" style={{ fontFamily: 'Arial' }}>رقم الفاتورة: INV-{reservationData.id.slice(0, 8)}</p>
+              <p className="text-blue-100">Invoice No: INV-{reservationData.id?.slice(0, 8) || 'N/A'}</p>
+              <p className="text-blue-100" style={{ fontFamily: 'Arial' }}>رقم الفاتورة: INV-{reservationData.id?.slice(0, 8) || 'غير متوفر'}</p>
             </div>
           </div>
 
@@ -214,15 +270,15 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
               <div className="space-y-3">
                 <div>
                   <span className="font-semibold text-gray-700">Name / الاسم:</span>
-                  <p className="text-gray-900">{reservationData.first_name} {reservationData.last_name}</p>
+                  <p className="text-gray-900">{reservationData.first_name || 'N/A'} {reservationData.last_name || ''}</p>
                 </div>
                 <div>
                   <span className="font-semibold text-gray-700">Email / البريد الإلكتروني:</span>
-                  <p className="text-gray-900">{reservationData.email}</p>
+                  <p className="text-gray-900">{reservationData.email || 'N/A'}</p>
                 </div>
                 <div>
                   <span className="font-semibold text-gray-700">Phone / الهاتف:</span>
-                  <p className="text-gray-900">{reservationData.phone}</p>
+                  <p className="text-gray-900">{reservationData.phone || 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -245,12 +301,12 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
                 </div>
                 <div>
                   <span className="font-semibold text-gray-700">Guests / عدد النزلاء:</span>
-                  <p className="text-gray-900">{reservationData.adults} Adults, {reservationData.children} Children</p>
-                  <p className="text-gray-700 text-sm" style={{ fontFamily: 'Arial' }}>{reservationData.adults} بالغ، {reservationData.children} طفل</p>
+                  <p className="text-gray-900">{reservationData.adults || 0} Adults, {reservationData.children || 0} Children</p>
+                  <p className="text-gray-700 text-sm" style={{ fontFamily: 'Arial' }}>{reservationData.adults || 0} بالغ، {reservationData.children || 0} طفل</p>
                 </div>
                 <div>
                   <span className="font-semibold text-gray-700">Nights / عدد الليالي:</span>
-                  <p className="text-gray-900">{calculateNights()} nights / ليلة</p>
+                  <p className="text-gray-900">{nights} nights / ليلة</p>
                 </div>
               </div>
             </div>
@@ -281,6 +337,7 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
                 value={newItem.quantity}
                 onChange={(e) => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 1 })}
                 className="px-3 py-2 border rounded"
+                min="1"
               />
               <input
                 type="number"
@@ -288,6 +345,8 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
                 value={newItem.price}
                 onChange={(e) => setNewItem({ ...newItem, price: parseFloat(e.target.value) || 0 })}
                 className="px-3 py-2 border rounded"
+                min="0"
+                step="0.01"
               />
               <button
                 onClick={addItem}
@@ -327,15 +386,15 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
                   <tr className="hover:bg-gray-50">
                     <td className="border border-gray-300 px-4 py-3">
                       <div>
-                        <p className="font-semibold">{room?.name || 'Room'} - {calculateNights()} nights</p>
+                        <p className="font-semibold">{room?.name || 'Room'} - {nights} nights</p>
                         <p className="text-sm text-gray-600" style={{ fontFamily: 'Arial' }}>
-                          {room?.name || 'غرفة'} - {calculateNights()} ليلة
+                          {room?.name || 'غرفة'} - {nights} ليلة
                         </p>
                       </div>
                     </td>
-                    <td className="border border-gray-300 px-4 py-3 text-center">{calculateNights()}</td>
+                    <td className="border border-gray-300 px-4 py-3 text-center">{nights}</td>
                     <td className="border border-gray-300 px-4 py-3 text-right">
-                      {room?.price?.toFixed(2)} SAR / ريال
+                      {room?.price?.toFixed(2) || '0.00'} SAR / ريال
                     </td>
                     <td className="border border-gray-300 px-4 py-3 text-right font-semibold">
                       {roomTotal.toFixed(2)} SAR / ريال
@@ -385,6 +444,8 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
                 value={discountAmount}
                 onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
                 className="w-full px-3 py-2 border rounded"
+                min="0"
+                step="0.01"
               />
             </div>
             <div>
@@ -396,6 +457,9 @@ const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ reservationData, on
                 value={taxRate}
                 onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
                 className="w-full px-3 py-2 border rounded"
+                min="0"
+                max="100"
+                step="0.1"
               />
             </div>
           </div>
