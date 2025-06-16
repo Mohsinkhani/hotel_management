@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Download, Print } from 'lucide-react';
+import { X, Download, Printer as Print } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 interface Reservation {
