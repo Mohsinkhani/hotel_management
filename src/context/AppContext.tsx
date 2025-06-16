@@ -48,6 +48,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...reservationData,
       id: `res-${Date.now()}`,
       createdAt: new Date().toISOString(),
+      services: undefined,
+      last_name: undefined,
+      first_name: undefined,
+      roomId: '',
+      guestId: '',
+      checkInDate: '',
+      checkOutDate: '',
+      status: 'pending',
+      adults: 0,
+      children: 0
     };
 
     setReservations([...reservations, newReservation]);

@@ -1,5 +1,5 @@
-import { Menu, X, User, Moon, Sun, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Menu, X, User, Moon, Sun, LogOut, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useProfile } from '../hooks/useProfile';
@@ -8,8 +8,10 @@ const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
   const navigate = useNavigate();
   const profile = useProfile(user?.id);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const handleAdminPanel = () => navigate('/admin');
   const ADMIN_EMAIL = 'admin1@lerelax.online';
 
@@ -18,8 +20,18 @@ const Navbar: React.FC = () => {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
+    
+    // Close dropdown when clicking outside
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    
     return () => {
       listener.subscription.unsubscribe();
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -32,6 +44,16 @@ const Navbar: React.FC = () => {
       await supabase.auth.signOut();
       navigate('/auth');
     }
+  };
+
+  const getInitials = (name?: string, email?: string) => {
+    if (name) {
+      const names = name.split(' ');
+      return names.length > 1 
+        ? `${names[0][0]}${names[names.length - 1][0]}` 
+        : name.substring(0, 2);
+    }
+    return email?.substring(0, 2).toUpperCase() || 'US';
   };
 
   const navLinks = ['Home', 'Rooms', 'Amenities', 'About', 'Contact'];
@@ -75,14 +97,14 @@ const Navbar: React.FC = () => {
             </button>
 
             {/* Admin Panel button for desktop */}
-           {user && user.email === ADMIN_EMAIL && (
-  <button
-    onClick={handleAdminPanel}
-    className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md font-medium"
-  >
-    Admin Panel
-  </button>
-)}
+            {user && user.email === ADMIN_EMAIL && (
+              <button
+                onClick={handleAdminPanel}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md font-medium"
+              >
+                Admin Panel
+              </button>
+            )}
 
             <button
               onClick={toggleDarkMode}
@@ -98,19 +120,62 @@ const Navbar: React.FC = () => {
                 <span className="ml-2 hidden md:inline">Login / Signup</span>
               </Link>
             ) : (
-              <div className="flex items-center gap-2">
-                {profile?.avatar_url && (
-                  <img src={profile.avatar_url} alt="avatar" className="w-8 h-8 rounded-full" />
-                )}
-                <span>{profile?.full_name || user.email}</span>
+              <div className="relative" ref={dropdownRef}>
                 <button
-                  onClick={handleLogout}
-                  className={iconButtonClass}
-                  aria-label="Logout"
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="flex items-center gap-2 hover:bg-gray-100 p-1 rounded-full transition-colors duration-200"
                 >
-                  <LogOut size={20} />
-                  <span className="ml-2 hidden md:inline">Logout</span>
+                  {profile?.avatar_url ? (
+                    <img 
+                      src={profile.avatar_url} 
+                      alt="avatar" 
+                      className="w-10 h-10 rounded-full object-cover" 
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium">
+                      {getInitials(profile?.full_name, user.email)}
+                    </div>
+                  )}
+                  <ChevronDown size={16} className="text-gray-600" />
                 </button>
+
+                {showDropdown && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-900">
+                        {profile?.full_name || user.email}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                    </div>
+                    <Link
+                      to="/profile"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowDropdown(false)}
+                    >
+                      Profile Details
+                    </Link>
+                    <Link
+                      to="/booking-history"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowDropdown(false)}
+                    >
+                      Booking History
+                    </Link>
+                    <Link
+                      to="/orders"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowDropdown(false)}
+                    >
+                      My Orders
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <LogOut size={16} /> Logout
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -156,12 +221,14 @@ const Navbar: React.FC = () => {
               </button>
 
               {/* Admin Panel button for mobile */}
-              <button
-                onClick={handleAdminPanel}
-                className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md font-medium"
-              >
-                Admin Panel
-              </button>
+              {user && user.email === ADMIN_EMAIL && (
+                <button
+                  onClick={handleAdminPanel}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md font-medium"
+                >
+                  Admin Panel
+                </button>
+              )}
 
               <button
                 onClick={toggleDarkMode}
@@ -176,11 +243,21 @@ const Navbar: React.FC = () => {
                   <span className="ml-2">Login / Signup</span>
                 </Link>
               ) : (
-                <div className="flex items-center gap-2">
-                  {profile?.avatar_url && (
-                    <img src={profile.avatar_url} alt="avatar" className="w-8 h-8 rounded-full" />
-                  )}
-                  <span>{profile?.full_name || user.email}</span>
+                <div className="flex items-center gap-2 w-full">
+                  <div className="flex items-center gap-2">
+                    {profile?.avatar_url ? (
+                      <img 
+                        src={profile.avatar_url} 
+                        alt="avatar" 
+                        className="w-8 h-8 rounded-full object-cover" 
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium text-xs">
+                        {getInitials(profile?.full_name, user.email)}
+                      </div>
+                    )}
+                    <span className="text-sm">{profile?.full_name || user.email}</span>
+                  </div>
                   <button
                     onClick={handleLogout}
                     className={iconButtonClass}

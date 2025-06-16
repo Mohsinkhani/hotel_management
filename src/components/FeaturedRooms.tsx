@@ -73,7 +73,3 @@ const FeaturedRooms: React.FC = () => {
 };
 
 export default FeaturedRooms;
-
-
-
-

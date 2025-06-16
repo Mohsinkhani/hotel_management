@@ -5,7 +5,7 @@ export const rooms: Room[] = [
 {
   id: 6,
   name: 'Family Suite',
-  type: 'suite',
+  type: 'Shega',
   price: 350,
   description: 'Spacious suite ideal for families with two bedrooms and a shared lounge area.',
   capacity: 5,
@@ -28,7 +28,7 @@ export const rooms: Room[] = [
 {
   id: 7,
   name: 'Garden View Room',
-  type: 'deluxe',
+  type: 'Twin Bed',
   price: 220,
   description: 'Room with a private balcony overlooking our lush garden, perfect for a relaxing stay.',
   capacity: 2,
@@ -50,7 +50,7 @@ export const rooms: Room[] = [
 {
   id: 8,
   name: 'Penthouse Suite',
-  type: 'standard',
+  type: 'Standard',
   price: 1200,
   description: 'Top-floor luxury suite with a private terrace, hot tub, and breathtaking skyline views.',
   capacity: 4,
