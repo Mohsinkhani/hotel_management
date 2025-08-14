@@ -13,43 +13,41 @@ import {
 } from 'lucide-react';
 import emailjs from 'emailjs-com';
 
-// emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
+emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY); // Replace with your actual PUBLIC KEY
 
-// type Reservation = {
-//   id: string;
-//   room_id: string | null;
-//   guest_id: string | null;
-//   check_in_date: string | null;
-//   check_out_date: string | null;
-//   status: string | null;
-//   adults: number | null;
-//   children: number | null;
-//   special_requests: string | null;
-//   first_name: string | null;
-//   last_name: string | null;
-//   email: string | null;
-//   phone: string | null;
-// };
+type Reservation = {
+  id: string;
+  room_id: string | null;
+  guest_id: string | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  status: string | null;
+  adults: number | null;
+  children: number | null;
+  special_requests: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+};
 
-// type Guest = {
-//   guestKey: string;
-//   first_name: string | null;
-//   last_name: string | null;
-//   email: string | null;
-//   phone: string | null;
-//   check_in_date: string | null;
-//   check_out_date: string | null;
-//   reservations: Reservation[];
-// };
+type Guest = {
+  guestKey: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  reservations: Reservation[];
+};
 
-// type Room = {
-//   id: number;
-//   name: string;
-//   type: string;
-//   price: number;
-//   capacity: number;
-//   available: boolean;
-// };
+type Room = {
+  id: string;
+  name: string;
+  type: string;
+  price: number;
+  capacity: number;
+  available: boolean;
+};
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'reservations' | 'guests' | 'rooms'>('reservations');
@@ -68,112 +66,74 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-//   useEffect(() => {
-//     const getReservations = async () => {
-//       setLoading(true);
-//       const { data, error } = await supabase
-//         .from('reservations')
-//         .select('*')
-//         .order('check_in_date', { ascending: false });
+  useEffect(() => {
+    const getReservations = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('reservations')
+        .select('*')
+        .order('check_in_date', { ascending: false });
 
-//       if (error) console.error(error.message);
-//       else setReservations(data as Reservation[]);
-//       setLoading(false);
-//     };
+      if (error) console.error(error.message);
+      else setReservations(data as Reservation[]);
+      setLoading(false);
+    };
 
     getReservations();
     getRooms();
   }, []);
 
-//   // Filter reservations based on the search term
-//   const filteredReservations = reservations.filter((r) => {
-//     const fullName = `${r.first_name} ${r.last_name}`.toLowerCase();
-//     return (
-//       fullName.includes(searchTerm.toLowerCase()) ||
-//       (r.email?.toLowerCase() ?? '').includes(searchTerm.toLowerCase()) ||
-//       (r.room_id ?? '').toLowerCase().includes(searchTerm.toLowerCase())
-//     );
-//   });
+  // Filter reservations based on the search term
+  const filteredReservations = reservations.filter((r) => {
+    const fullName = `${r.first_name} ${r.last_name}`.toLowerCase();
+    return (
+      fullName.includes(searchTerm.toLowerCase()) ||
+      (r.email?.toLowerCase() ?? '').includes(searchTerm.toLowerCase()) ||
+      (r.room_id ?? '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
 
-//   const deleteReservation = async (id: string) => {
-//     const { error } = await supabase.from('reservations').delete().eq('id', id);
-//     if (error) return console.error(error.message);
-//     setReservations((prev) => prev.filter((r) => r.id !== id));
-//   };
+  const deleteReservation = async (id: string) => {
+    const { error } = await supabase.from('reservations').delete().eq('id', id);
+    if (error) return console.error(error.message);
+    setReservations((prev) => prev.filter((r) => r.id !== id));
+  };
 
-//   // Group guests by guest_id/email/id and show latest check-in/out date
-//   const guests: Guest[] = useMemo(() => {
-//     const map = new Map<string, Guest>();
-//     reservations
-//       .filter((r) => r.status === 'checked-in')
-//       .forEach((r) => {
-//         const key = r.guest_id || r.email || r.id;
-//         if (!map.has(key)) {
-//           map.set(key, {
-//             guestKey: key,
-//             first_name: r.first_name,
-//             last_name: r.last_name,
-//             email: r.email,
-//             phone: r.phone,
-//             check_in_date: r.check_in_date,
-//             check_out_date: r.check_out_date,
-//             reservations: [r],
-//           });
-//         } else {
-//           // If guest already exists, push reservation and update latest check-in/out
-//           const guest = map.get(key)!;
-//           guest.reservations.push(r);
-//           // Use the latest check-in/out date
-//           if (
-//             guest.check_in_date &&
-//             r.check_in_date &&
-//             new Date(r.check_in_date) > new Date(guest.check_in_date)
-//           ) {
-//             guest.check_in_date = r.check_in_date;
-//             guest.check_out_date = r.check_out_date;
-//           }
-//         }
-//       });
-//     return Array.from(map.values());
-//   }, [reservations]);
+  const guests: Guest[] = useMemo(() => {
+    const map = new Map<string, Guest>();
+    reservations
+      .filter((r) => r.status === 'checked-in') // Only include checked-in reservations
+      .forEach((r) => {
+        const key = r.guest_id || r.email || r.id;
+        if (!map.has(key)) {
+          map.set(key, {
+            guestKey: key,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            phone: r.phone,
+            reservations: [],
+          });
+        }
+        map.get(key)!.reservations.push(r);
+      });
+    return Array.from(map.values());
+  }, [reservations]);
 
-//   // Monthly report logic
-//   const monthlyCheckins = useMemo(() => {
-//     return reservations.filter(r => {
-//       if (!r.check_in_date) return false;
-//       const date = new Date(r.check_in_date);
-//       return (
-//         date.getMonth() + 1 === reportMonth &&
-//         date.getFullYear() === reportYear
-//       );
-//     });
-//   }, [reservations, reportMonth, reportYear]);
+  const sendEmail = (reservation: Reservation, newStatus: string) => {
+    if (!reservation.email) {
+      console.warn('No email provided for this reservation.');
+      return;
+    }
 
-//   const monthlyCheckouts = useMemo(() => {
-//     return reservations.filter(r => {
-//       if (!r.check_out_date) return false;
-//       const date = new Date(r.check_out_date);
-//       return (
-//         date.getMonth() + 1 === reportMonth &&
-//         date.getFullYear() === reportYear
-//       );
-//     });
-//   }, [reservations, reportMonth, reportYear]);
-
-//   const sendEmail = (reservation: Reservation, newStatus: string) => {
-//     if (!reservation.email) {
-//       console.warn('No email provided for this reservation.');
-//       return;
-//     }
-
-//     const templateParams = {
-//       user_name: `${reservation.first_name} ${reservation.last_name}`,
-//       reservation_id: reservation.id,
-//       status: newStatus,
-//       check_in: reservation.check_in_date,
-//       check_out: reservation.check_out_date,
-//       email: reservation.email,
-//     };
+    const templateParams = {
+      user_name: `${reservation.first_name} ${reservation.last_name}`,
+      reservation_id: reservation.id,
+      status: newStatus,
+      check_in: reservation.check_in_date,
+      check_out: reservation.check_out_date,
+      email: reservation.email,
+    };
 
     emailjs
       .send(import.meta.env.VITE_EMAILJS_SERVICE_ID, // Use service ID from .env
@@ -187,12 +147,12 @@ const AdminDashboard: React.FC = () => {
       });
   };
 
-//   const updateStatus = async (id: string, status: string) => {
-//     const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
-//     if (error) return console.error(error.message);
+  const updateStatus = async (id: string, status: string) => {
+    const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
+    if (error) return console.error(error.message);
 
-//     const updatedReservation = reservations.find((r) => r.id === id);
-//     if (updatedReservation) sendEmail(updatedReservation, status);
+    const updatedReservation = reservations.find((r) => r.id === id);
+    if (updatedReservation) sendEmail(updatedReservation, status);
 
     setReservations((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
   };
@@ -201,63 +161,63 @@ const AdminDashboard: React.FC = () => {
     setSelectedReservationForInvoice(reservation);
   };
 
-//   const badge = (status: string | null) => {
-//     switch (status) {
-//       case 'confirmed':
-//         return (
-//           <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 flex items-center">
-//             <Check size={12} className="mr-1" /> Confirmed
-//           </span>
-//         );
-//       case 'pending':
-//         return (
-//           <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 flex items-center">
-//             <Clock size={12} className="mr-1" /> Pending
-//           </span>
-//         );
-//       case 'checked-in':
-//         return (
-//           <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 flex items-center">
-//             <User size={12} className="mr-1" /> Checked In
-//           </span>
-//         );
-//       case 'checked-out':
-//         return (
-//           <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 flex items-center">
-//             <LogOut size={12} className="mr-1" /> Checked Out
-//           </span>
-//         );
-//       case 'cancelled':
-//         return (
-//           <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 flex items-center">
-//             <X size={12} className="mr-1" /> Cancelled
-//           </span>
-//         );
-//       default:
-//         return <span>{status || '—'}</span>;
-//     }
-//   };
+  const badge = (status: string | null) => {
+    switch (status) {
+      case 'confirmed':
+        return (
+          <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 flex items-center">
+            <Check size={12} className="mr-1" /> Confirmed
+          </span>
+        );
+      case 'pending':
+        return (
+          <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 flex items-center">
+            <Clock size={12} className="mr-1" /> Pending
+          </span>
+        );
+      case 'checked-in':
+        return (
+          <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 flex items-center">
+            <User size={12} className="mr-1" /> Checked In
+          </span>
+        );
+      case 'checked-out':
+        return (
+          <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 flex items-center">
+            <LogOut size={12} className="mr-1" /> Checked Out
+          </span>
+        );
+      case 'cancelled':
+        return (
+          <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 flex items-center">
+            <X size={12} className="mr-1" /> Cancelled
+          </span>
+        );
+      default:
+        return <span>{status || '—'}</span>;
+    }
+  };
 
-//   return (
-//     <Layout>
-//       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
-//         <div className="container mx-auto px-4 md:px-6">
-//           <div className="bg-white rounded-lg shadow-md overflow-hidden">
-//             <div className="border-b flex">
-//               {(['reservations', 'guests', 'rooms', 'report'] as const).map((t) => (
-//                 <button
-//                   key={t}
-//                   onClick={() => setActiveTab(t)}
-//                   className={`px-6 py-4 font-medium ${
-//                     activeTab === t
-//                       ? 'text-blue-900 border-b-2 border-blue-900'
-//                       : 'text-gray-600 hover:text-gray-900'
-//                   }`}
-//                 >
-//                   {t === 'report' ? 'Monthly Report' : t.charAt(0).toUpperCase() + t.slice(1)}
-//                 </button>
-//               ))}
-//             </div>
+  return (
+    <Layout>
+      <div className="min-h-screen bg-gray-50 pt-24 pb-12">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="border-b flex">
+              {(['reservations', 'guests', 'rooms'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setActiveTab(t)}
+                  className={`px-6 py-4 font-medium ${
+                    activeTab === t
+                      ? 'text-blue-900 border-b-2 border-blue-900'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
 
             <div className="p-6">
               {activeTab === 'reservations' && (

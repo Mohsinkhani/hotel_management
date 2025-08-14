@@ -521,7 +521,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
       )}
 
       {/* Invoice Generator Modal */}
-      {showInvoiceGenerator && selectedReservation && (
+      {/* {showInvoiceGenerator && selectedReservation && (
         <InvoiceGenerator
           reservation={selectedReservation}
           room={getSelectedRoom()}
@@ -530,7 +530,7 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
             setSelectedReservation(null);
           }}
         />
-      )}
+      )} */}
     </div>
   );
 };
