@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Reservation } from '../../types';
-import { reservations } from '../../data/reservations';
 
 type Room = {
   id: number;
@@ -108,7 +107,7 @@ const RoomTable: React.FC<RoomTableProps> = ({ roomList, reservations, checkIn, 
             </tr>
           </thead>
           <tbody>
-            {currentRooms.map((room) => (
+{[...roomList].sort((a, b) => a.id - b.id).map((room) => (
               <tr key={room.id} className="border-b hover:bg-gray-50 text-sm">
                 <td className="px-4 py-3 font-mono">{room.id}</td>
                 <td className="px-4 py-3">{room.name}</td>

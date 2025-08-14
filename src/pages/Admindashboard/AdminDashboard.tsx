@@ -7,7 +7,6 @@ import RoomTable from './RoomTable';
 import MonthlyReport from './MonthlyReport';
 // import RoomStatusDashboard from './RoomStatusDashboard';
 import type { Reservation } from '../../types';
-import RoomStatusDashboard from './RoomStatusBoard';
 import RoomStatusBoard from './RoomStatusBoard';
 
 emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
@@ -29,11 +28,11 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [roomList, setRoomList] = useState<Room[]>([]);
   const [monthlyCheckins, setMonthlyCheckins] = useState<Reservation[]>([]);
-  const [monthlyCheckouts, setMonthlyCheckouts] = useState<Reservation[]>([]);
+  const [monthlyCheckouts] = useState<Reservation[]>([]);
   const now = new Date();
   const [reportMonth, setReportMonth] = useState<number>(now.getMonth() + 1);
   const [reportYear, setReportYear] = useState<number>(now.getFullYear());
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [, setUserEmail] = useState<string | null>(null);
 
   // CSV Download Helper
   function downloadCSV(rows: Reservation[], type: string) {

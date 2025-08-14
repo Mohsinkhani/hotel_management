@@ -29,9 +29,9 @@ export const useApp = () => {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [rooms, setRooms] = useState<Room[]>(initialRooms);
+  const [rooms] = useState<Room[]>(initialRooms);
   const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
-  const [guests, setGuests] = useState<Guest[]>(initialGuests);
+  const [guests] = useState<Guest[]>(initialGuests);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {

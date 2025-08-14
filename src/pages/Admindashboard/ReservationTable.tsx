@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Check, X, LogOut, User, Pencil, Trash2, Search, ChevronRight, ChevronLeft, FileText } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
-import InvoiceGenerator from '../../components/InvoiceGenerator';
+import emailjs from 'emailjs-com';
+import WalkInForm from './WalkInForm';
 
 type Reservation = {
   id: string | number;
@@ -53,12 +54,8 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showWalkInForm, setShowWalkInForm] = useState(false);
-  const [walkInCheckIn, setWalkInCheckIn] = useState('');
-  const [walkInCheckOut, setWalkInCheckOut] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(15);
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
-  const [showInvoiceGenerator, setShowInvoiceGenerator] = useState(false);
+  const [rowsPerPage, setRowsPerPage] = useState(15); // Default to 15 rows per page
 
   useEffect(() => {
     const fetchReservations = async () => {
@@ -78,6 +75,14 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     };
     fetchReservations();
   }, [onReservationsChange]);
+
+function getNights(checkIn: string, checkOut: string) {
+  const inDate = new Date(checkIn);
+  const outDate = new Date(checkOut);
+  const diffTime = outDate.getTime() - inDate.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : 1;
+}
 
   function getAvailableRooms(room: Room, reservations: Reservation[], checkIn: string, checkOut: string) {
     const reservedCount = reservations.filter(r =>
@@ -120,98 +125,68 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
     setReservations((prev) => prev.filter((r) => String(r.id) !== id));
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
-    if (error) {
-      alert('Failed to update status: ' + error.message);
-      return;
-    }
-    setReservations((prev) =>
-      prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
-    );
+  // --- CHANGE: Update room status in Supabase when reservation status changes ---
+ const updateStatus = async (id: string, status: string) => {
+  const { error } = await supabase.from('reservations').update({ status }).eq('id', id);
+  if (error) {
+    alert('Failed to update status: ' + error.message);
+    return;
+  }
+  setReservations((prev) =>
+    prev.map((r) => (String(r.id) === id ? { ...r, status } : r))
+  );
 
-    // Update room status in Supabase if status is checked-in or checked-out/cancelled
-    const reservation = reservations.find(r => String(r.id) === id);
+  // Update room status in Supabase if status is checked-in or checked-out/cancelled
+  const reservation = reservations.find(r => String(r.id) === id);
+  if (reservation) {
+    if (status === 'checked-in') {
+      await supabase.from('rooms').update({ status: 'occupied' }).eq('id', reservation.room_id);
+    }
+    if (status === 'checked-out' || status === 'cancelled') {
+      await supabase.from('rooms').update({ status: 'available' }).eq('id', reservation.room_id);
+    }
+
+    // Send email notification on status change
+    sendReservationEmail({
+      to_email: reservation.email,
+      to_name: `${reservation.first_name} ${reservation.last_name}`,
+      reservation_id: reservation.id,
+      status,
+      check_in: reservation.check_in_date,
+      check_out: reservation.check_out_date,
+    });
+  }
+
+  // Insert into checkins table if status is checked-in or confirmed
+  if (status === 'confirmed' || status === 'checked-in') {
     if (reservation) {
-      if (status === 'checked-in') {
-        await supabase.from('rooms').update({ status: 'occupied' }).eq('id', reservation.room_id);
-      }
-      if (status === 'checked-out' || status === 'cancelled') {
-        await supabase.from('rooms').update({ status: 'available' }).eq('id', reservation.room_id);
-      }
-    }
+      const { data: existingCheckin } = await supabase
+        .from('checkins')
+        .select('id')
+        .eq('reservation_id', reservation.id)
+        .maybeSingle();
 
-    // Insert into checkins table if status is checked-in or confirmed
-    if (status === 'confirmed' || status === 'checked-in') {
-      if (reservation) {
-        const { data: existingCheckin } = await supabase
-          .from('checkins')
-          .select('id')
-          .eq('reservation_id', reservation.id)
-          .maybeSingle();
-
-        if (!existingCheckin) {
-          const { error: checkinError } = await supabase.from('checkins').insert([{
-            reservation_id: reservation.id,
-            first_name: reservation.first_name,
-            last_name: reservation.last_name,
-            email: reservation.email,
-            phone: reservation.phone,
-            room_id: Number(reservation.room_id),
-            check_in_date: reservation.check_in_date,
-            check_out_date: reservation.check_out_date,
-          }]);
-          if (checkinError) {
-            alert('Failed to add to checkins: ' + checkinError.message);
-          }
+      if (!existingCheckin) {
+        const { error: checkinError } = await supabase.from('checkins').insert([{
+          reservation_id: reservation.id,
+          first_name: reservation.first_name,
+          last_name: reservation.last_name,
+          email: reservation.email,
+          phone: reservation.phone,
+          room_id: Number(reservation.room_id),
+          check_in_date: reservation.check_in_date,
+          check_out_date: reservation.check_out_date,
+        }]);
+        if (checkinError) {
+          alert('Failed to add to checkins: ' + checkinError.message);
         }
       }
     }
-  };
+  }
+};
+  // --- END CHANGE ---
 
-  const handleAddWalkIn = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const newReservation = {
-      first_name: formData.get('first_name') as string,
-      last_name: formData.get('last_name') as string,
-      email: formData.get('email') as string,
-      phone: formData.get('phone') as string,
-      check_in_date: formData.get('check_in_date') as string,
-      check_out_date: formData.get('check_out_date') as string,
-      adults: Number(formData.get('adults')),
-      children: Number(formData.get('children')),
-      special_requests: formData.get('special_requests') as string,
-      room_id: formData.get('room_id') as string,
-      status: 'checked-in',
-    };
-    const selectedRoom = roomList.find(r => String(r.id) === newReservation.room_id);
-    const available = selectedRoom
-      ? getAvailableRooms(selectedRoom, reservations, newReservation.check_in_date, newReservation.check_out_date)
-      : 0;
-    if (available <= 0) {
-      alert('No space available for the selected room and dates.');
-      return;
-    }
-    const { error, data } = await supabase.from('reservations').insert([newReservation]).select();
-    if (error) {
-      alert('Failed to add walk-in guest: ' + error.message);
-    } else {
-      setReservations((prev) => [data[0], ...prev]);
-      setShowWalkInForm(false);
-    }
-  };
 
-  const handleGenerateInvoice = (reservation: Reservation) => {
-    setSelectedReservation(reservation);
-    setShowInvoiceGenerator(true);
-  };
-
-  const getSelectedRoom = () => {
-    if (!selectedReservation) return undefined;
-    return roomList.find(room => String(room.id) === String(selectedReservation.room_id));
-  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
@@ -242,97 +217,16 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
       </div>
 
       {/* Walk-in Guest Form */}
-      {showWalkInForm && (
-        <div className="p-6 bg-blue-50 border-b border-blue-100">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-blue-800">Add Walk-in Guest</h3>
-            <button
-              onClick={() => setShowWalkInForm(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <X size={20} />
-            </button>
-          </div>
-          <form onSubmit={handleAddWalkIn} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-              <input name="first_name" placeholder="John" required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-              <input name="last_name" placeholder="Doe" required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input name="email" placeholder="guest@example.com" type="email" required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-              <input name="phone" placeholder="+1234567890" required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date</label>
-              <input
-                name="check_in_date"
-                type="date"
-                required
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                value={walkInCheckIn}
-                onChange={e => setWalkInCheckIn(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date</label>
-              <input
-                name="check_out_date"
-                type="date"
-                required
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                value={walkInCheckOut}
-                onChange={e => setWalkInCheckOut(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
-              <select name="room_id" required className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                <option value="">Select Room</option>
-                {roomList.filter(r => r.available).map(room => {
-                  const available = getAvailableRooms(room, reservations, walkInCheckIn, walkInCheckOut);
-                  return (
-                    <option
-                      key={String(room.id ?? '')}
-                      value={String(room.id ?? '')}
-                      disabled={!!walkInCheckIn && !!walkInCheckOut && available <= 0}
-                    >
-                      {room.name} ({room.type}){walkInCheckIn && walkInCheckOut ? (available <= 0 ? ' - No Space' : ` - ${available} available`) : ''}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Special Requests</label>
-              <input name="special_requests" placeholder="Any special requirements..." className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div className="flex gap-3 md:col-span-2 pt-2">
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <Check size={16} />
-                Confirm Walk-in
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowWalkInForm(false)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+    {showWalkInForm && (
+  <WalkInForm
+    roomList={roomList}
+    reservations={reservations}
+    onAdd={(reservation) => setReservations(prev => [reservation, ...prev])}
+    onClose={() => setShowWalkInForm(false)}
+    sendReservationEmail={sendReservationEmail}
+    getAvailableRooms={getAvailableRooms}
+  />
+)}
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -372,9 +266,16 @@ const ReservationTable: React.FC<Props> = ({ roomList, onReservationsChange }) =
                       <div className="text-sm text-gray-900">{room ? room.name : r.room_id}</div>
                       <div className="text-sm text-gray-500">{room ? room.type : 'N/A'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{room ? `${room.price} SAR` : '-'}</div>
-                    </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                      {room
+                      ? `$${room.price * getNights(r.check_in_date, r.check_out_date)}`
+                      : '-'}
+                      <span className="text-xs text-gray-500 ml-1">
+                       {room ? `(${getNights(r.check_in_date, r.check_out_date)} night${getNights(r.check_in_date, r.check_out_date) > 1 ? 's' : ''})` : ''}
+                       </span>
+                         </div>
+                       </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
                         <div className="font-medium">{r.check_in_date}</div>

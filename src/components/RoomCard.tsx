@@ -20,6 +20,7 @@ const RoomCard: React.FC<RoomCardProps> = ({ room, onClick }) => {
           className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
         />
         {/* {room.type === 'presidential' && (
+        {room.type === 'Shega' && (
           <div className="absolute top-0 right-0 bg-yellow-500 text-white px-3 py-1 m-2 rounded-full text-xs font-bold">
             Premium
           </div>

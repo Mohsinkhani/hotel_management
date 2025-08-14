@@ -1,5 +1,5 @@
 // App.tsx
-import {  Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import Home from './pages/Home';
 import Rooms from './pages/Rooms';
